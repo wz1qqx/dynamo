@@ -139,6 +139,24 @@ func TestInjectionIdempotency(t *testing.T) {
 	assert.Len(t, container.VolumeMounts, 2)
 }
 
+func TestInjectPodInfoAnnotations(t *testing.T) {
+	annotations := InjectPodInfoAnnotations(
+		map[string]string{"custom": "value"},
+		"dyn-ns",
+		"worker",
+		"my-dgd",
+		"my-ns",
+		"kubernetes",
+	)
+
+	assert.Equal(t, "value", annotations["custom"])
+	assert.Equal(t, "dyn-ns", annotations[consts.AnnotationDynNamespace])
+	assert.Equal(t, "worker", annotations[consts.AnnotationDynComponent])
+	assert.Equal(t, "my-dgd", annotations[consts.AnnotationDynParentDGDName])
+	assert.Equal(t, "my-ns", annotations[consts.AnnotationDynParentDGDNS])
+	assert.Equal(t, "kubernetes", annotations[consts.AnnotationDynDiscoveryBackend])
+}
+
 // --- InjectCheckpointEnvVars tests ---
 
 func TestInjectCheckpointEnvVars(t *testing.T) {

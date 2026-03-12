@@ -1080,6 +1080,22 @@ func (r *DynamoComponentDeploymentReconciler) generatePodTemplateSpec(ctx contex
 		if checkpointInfo.Hash != "" {
 			podLabels[commonconsts.KubeLabelCheckpointHash] = checkpointInfo.Hash
 		}
+		dynamoNamespace := ""
+		if opt.dynamoComponentDeployment.Spec.DynamoNamespace != nil {
+			dynamoNamespace = *opt.dynamoComponentDeployment.Spec.DynamoNamespace
+		}
+		podAnnotations = checkpoint.InjectPodInfoAnnotations(
+			podAnnotations,
+			dynamo.GetEffectiveDynamoNamespace(
+				opt.dynamoComponentDeployment.Spec.ComponentType,
+				dynamoNamespace,
+				opt.dynamoComponentDeployment.Spec.Labels,
+			),
+			opt.dynamoComponentDeployment.Spec.ComponentType,
+			opt.dynamoComponentDeployment.Spec.Labels[commonconsts.KubeLabelDynamoGraphDeploymentName],
+			opt.dynamoComponentDeployment.Namespace,
+			string(commonController.GetDiscoveryBackend(r.Config.Discovery.Backend, resourceAnnotations)),
+		)
 	}
 
 	// Propagate restart annotation to pod template to trigger rolling restart

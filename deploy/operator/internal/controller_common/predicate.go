@@ -99,8 +99,11 @@ func detectAPIGroupAvailability(ctx context.Context, mgr ctrl.Manager, groupName
 // falling back to the configured default.
 // For DGD, pass in the meta annotations; for DCD, pass in the spec annotations.
 func GetDiscoveryBackend(discoveryBackend configv1alpha1.DiscoveryBackend, annotations map[string]string) configv1alpha1.DiscoveryBackend {
-	if dgdDiscoveryBackend, exists := annotations[commonconsts.KubeAnnotationDynamoDiscoveryBackend]; exists {
+	if dgdDiscoveryBackend, exists := annotations[commonconsts.KubeAnnotationDynamoDiscoveryBackend]; exists && dgdDiscoveryBackend != "" {
 		return configv1alpha1.DiscoveryBackend(dgdDiscoveryBackend)
+	}
+	if discoveryBackend == "" {
+		return configv1alpha1.DiscoveryBackendKubernetes
 	}
 	return discoveryBackend
 }

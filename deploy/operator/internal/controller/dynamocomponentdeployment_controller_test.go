@@ -1342,6 +1342,55 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 		if got := podTemplateSpec.Labels[commonconsts.KubeLabelCheckpointHash]; got != checkpointName {
 			t.Fatalf("expected %s to be checkpoint hash, got %q", commonconsts.KubeLabelCheckpointHash, got)
 		}
+		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynNamespace]; got != "default" {
+			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynNamespace, "default", got)
+		}
+		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynComponent]; got != commonconsts.ComponentTypeWorker {
+			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynComponent, commonconsts.ComponentTypeWorker, got)
+		}
+		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynParentDGDName]; got != "test-dgd" {
+			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynParentDGDName, "test-dgd", got)
+		}
+		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynParentDGDNS]; got != "default" {
+			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynParentDGDNS, "default", got)
+		}
+		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynDiscoveryBackend]; got != "kubernetes" {
+			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynDiscoveryBackend, "kubernetes", got)
+		}
+	})
+
+	t.Run("ready checkpoint uses effective worker namespace when worker hash is present", func(t *testing.T) {
+		identity := v1alpha1.DynamoCheckpointIdentity{Model: "test-model", BackendFramework: "vllm"}
+		checkpointName, err := checkpoint.ComputeCheckpointName(identity)
+		if err != nil {
+			t.Fatalf("ComputeCheckpointName failed: %v", err)
+		}
+		dcd := makeDCD(checkpointName)
+		dcd.Spec.Labels[commonconsts.KubeLabelDynamoWorkerHash] = "abc12345"
+		ckpt := &v1alpha1.DynamoCheckpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      checkpointName,
+				Namespace: "default",
+			},
+			Spec: v1alpha1.DynamoCheckpointSpec{Identity: identity},
+			Status: v1alpha1.DynamoCheckpointStatus{
+				Phase: v1alpha1.DynamoCheckpointPhaseReady,
+			},
+		}
+
+		r := makeReconciler(dcd, ckpt)
+		podTemplateSpec, err := r.generatePodTemplateSpec(
+			context.Background(),
+			generateResourceOption{dynamoComponentDeployment: dcd},
+			dynamo.RoleMain,
+		)
+		if err != nil {
+			t.Fatalf("generatePodTemplateSpec failed: %v", err)
+		}
+
+		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynNamespace]; got != "default-abc12345" {
+			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynNamespace, "default-abc12345", got)
+		}
 	})
 
 	t.Run("non-ready checkpoint clears stale restore labels", func(t *testing.T) {
@@ -1377,6 +1426,9 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 		}
 		if _, ok := podTemplateSpec.Labels[commonconsts.KubeLabelCheckpointHash]; ok {
 			t.Fatalf("did not expect %s label when checkpoint is not ready", commonconsts.KubeLabelCheckpointHash)
+		}
+		if _, ok := podTemplateSpec.Annotations[commonconsts.AnnotationDynNamespace]; ok {
+			t.Fatalf("did not expect %s annotation when checkpoint is not ready", commonconsts.AnnotationDynNamespace)
 		}
 	})
 }

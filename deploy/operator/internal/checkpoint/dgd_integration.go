@@ -236,6 +236,30 @@ func InjectCheckpointVolumeMount(container *corev1.Container, basePath string) {
 	})
 }
 
+// InjectPodInfoAnnotations stamps the pod annotations consumed by the /etc/podinfo
+// Downward API volume. Restore targets must carry the current pod identity in
+// annotations because CRIU-restored env vars still reflect the checkpoint source pod.
+func InjectPodInfoAnnotations(
+	annotations map[string]string,
+	dynamoNamespace string,
+	component string,
+	parentGraphDeploymentName string,
+	parentGraphDeploymentNamespace string,
+	discoveryBackend string,
+) map[string]string {
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	annotations[consts.AnnotationDynNamespace] = dynamoNamespace
+	annotations[consts.AnnotationDynComponent] = component
+	annotations[consts.AnnotationDynParentDGDName] = parentGraphDeploymentName
+	annotations[consts.AnnotationDynParentDGDNS] = parentGraphDeploymentNamespace
+	annotations[consts.AnnotationDynDiscoveryBackend] = discoveryBackend
+
+	return annotations
+}
+
 // InjectPodInfoVolume adds a Downward API volume for pod identity and DGD info.
 // This is critical for CRIU checkpoint/restore scenarios where environment variables
 // contain stale values from the checkpoint source pod. The Downward API files

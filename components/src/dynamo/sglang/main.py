@@ -10,6 +10,7 @@ import uvloop
 from dynamo.common.config_dump import dump_config
 from dynamo.common.constants import DisaggregationMode
 from dynamo.common.utils.runtime import create_runtime
+from dynamo.common.utils.snapshot import apply_discovery_identity_restoration
 from dynamo.runtime.logging import configure_dynamo_logging
 from dynamo.sglang.args import parse_args
 from dynamo.sglang.init_diffusion import (
@@ -46,6 +47,15 @@ async def worker():
         return
 
     dynamo_args = config.dynamo_args
+    if snapshot_engine is not None:
+        identity = apply_discovery_identity_restoration(dynamo_args)
+        logging.info(
+            "Reloaded discovery identity from /etc/podinfo "
+            "(namespace=%s discovery_backend=%s)",
+            identity.namespace,
+            identity.discovery_backend,
+        )
+
     shutdown_event = asyncio.Event()
     shutdown_endpoints: list = []
     runtime, loop = create_runtime(

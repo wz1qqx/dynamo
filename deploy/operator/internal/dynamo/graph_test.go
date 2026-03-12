@@ -28,6 +28,7 @@ import (
 
 	configv1alpha1 "github.com/ai-dynamo/dynamo/deploy/operator/api/config/v1alpha1"
 	"github.com/ai-dynamo/dynamo/deploy/operator/api/v1alpha1"
+	"github.com/ai-dynamo/dynamo/deploy/operator/internal/checkpoint"
 	commonconsts "github.com/ai-dynamo/dynamo/deploy/operator/internal/consts"
 	"github.com/ai-dynamo/dynamo/deploy/operator/internal/controller_common"
 	grovev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
@@ -6815,6 +6816,184 @@ func TestGenerateGrovePodCliqueSet_RestartAnnotations(t *testing.T) {
 	}
 }
 
+func TestGenerateGrovePodCliqueSet_RestorePodInfoAnnotations(t *testing.T) {
+	dgd := &v1alpha1.DynamoGraphDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-dgd",
+			Namespace: "default",
+		},
+		Spec: v1alpha1.DynamoGraphDeploymentSpec{
+			Services: map[string]*v1alpha1.DynamoComponentDeploymentSharedSpec{
+				"Worker": {
+					ComponentType: commonconsts.ComponentTypeWorker,
+					Replicas:      ptr.To(int32(1)),
+				},
+			},
+		},
+	}
+
+	got, err := GenerateGrovePodCliqueSet(
+		context.Background(),
+		dgd,
+		&configv1alpha1.OperatorConfiguration{
+			Checkpoint: configv1alpha1.CheckpointConfiguration{
+				Enabled: true,
+				Storage: configv1alpha1.CheckpointStorageConfiguration{
+					Type: configv1alpha1.CheckpointStorageTypePVC,
+					PVC: configv1alpha1.CheckpointPVCConfig{
+						PVCName:  "snapshot-pvc",
+						BasePath: "/checkpoints",
+					},
+				},
+			},
+			Discovery: configv1alpha1.DiscoveryConfiguration{
+				Backend: configv1alpha1.DiscoveryBackendKubernetes,
+			},
+		},
+		&controller_common.RuntimeConfig{},
+		nil,
+		nil,
+		nil,
+		map[string]*checkpoint.CheckpointInfo{
+			"Worker": {
+				Enabled: true,
+				Ready:   true,
+				Hash:    "abc123def4567890",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateGrovePodCliqueSet() error = %v", err)
+	}
+
+	if len(got.Spec.Template.Cliques) != 1 {
+		t.Fatalf("expected 1 clique, got %d", len(got.Spec.Template.Cliques))
+	}
+
+	annotations := got.Spec.Template.Cliques[0].Annotations
+	assert.Equal(t, "default-test-dgd", annotations[commonconsts.AnnotationDynNamespace])
+	assert.Equal(t, commonconsts.ComponentTypeWorker, annotations[commonconsts.AnnotationDynComponent])
+	assert.Equal(t, "test-dgd", annotations[commonconsts.AnnotationDynParentDGDName])
+	assert.Equal(t, "default", annotations[commonconsts.AnnotationDynParentDGDNS])
+	assert.Equal(t, "kubernetes", annotations[commonconsts.AnnotationDynDiscoveryBackend])
+}
+
+func TestGenerateGrovePodCliqueSet_RestorePodInfoAnnotations_DefaultDiscoveryBackend(t *testing.T) {
+	dgd := &v1alpha1.DynamoGraphDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-dgd",
+			Namespace: "default",
+		},
+		Spec: v1alpha1.DynamoGraphDeploymentSpec{
+			Services: map[string]*v1alpha1.DynamoComponentDeploymentSharedSpec{
+				"Worker": {
+					ComponentType: commonconsts.ComponentTypeWorker,
+					Replicas:      ptr.To(int32(1)),
+				},
+			},
+		},
+	}
+
+	got, err := GenerateGrovePodCliqueSet(
+		context.Background(),
+		dgd,
+		&configv1alpha1.OperatorConfiguration{
+			Checkpoint: configv1alpha1.CheckpointConfiguration{
+				Enabled: true,
+				Storage: configv1alpha1.CheckpointStorageConfiguration{
+					Type: configv1alpha1.CheckpointStorageTypePVC,
+					PVC: configv1alpha1.CheckpointPVCConfig{
+						PVCName:  "snapshot-pvc",
+						BasePath: "/checkpoints",
+					},
+				},
+			},
+		},
+		&controller_common.RuntimeConfig{},
+		nil,
+		nil,
+		nil,
+		map[string]*checkpoint.CheckpointInfo{
+			"Worker": {
+				Enabled: true,
+				Ready:   true,
+				Hash:    "abc123def4567890",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateGrovePodCliqueSet() error = %v", err)
+	}
+
+	if len(got.Spec.Template.Cliques) != 1 {
+		t.Fatalf("expected 1 clique, got %d", len(got.Spec.Template.Cliques))
+	}
+
+	annotations := got.Spec.Template.Cliques[0].Annotations
+	assert.Equal(t, "kubernetes", annotations[commonconsts.AnnotationDynDiscoveryBackend])
+}
+
+func TestGenerateGrovePodCliqueSet_RestorePodInfoAnnotations_WithWorkerSuffix(t *testing.T) {
+	dgd := &v1alpha1.DynamoGraphDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-dgd",
+			Namespace: "default",
+		},
+		Spec: v1alpha1.DynamoGraphDeploymentSpec{
+			Services: map[string]*v1alpha1.DynamoComponentDeploymentSharedSpec{
+				"Worker": {
+					ComponentType: commonconsts.ComponentTypeWorker,
+					Replicas:      ptr.To(int32(1)),
+					Labels: map[string]string{
+						commonconsts.KubeLabelDynamoWorkerHash: "abc12345",
+					},
+				},
+			},
+		},
+	}
+
+	got, err := GenerateGrovePodCliqueSet(
+		context.Background(),
+		dgd,
+		&configv1alpha1.OperatorConfiguration{
+			Checkpoint: configv1alpha1.CheckpointConfiguration{
+				Enabled: true,
+				Storage: configv1alpha1.CheckpointStorageConfiguration{
+					Type: configv1alpha1.CheckpointStorageTypePVC,
+					PVC: configv1alpha1.CheckpointPVCConfig{
+						PVCName:  "snapshot-pvc",
+						BasePath: "/checkpoints",
+					},
+				},
+			},
+			Discovery: configv1alpha1.DiscoveryConfiguration{
+				Backend: configv1alpha1.DiscoveryBackendKubernetes,
+			},
+		},
+		&controller_common.RuntimeConfig{},
+		nil,
+		nil,
+		nil,
+		map[string]*checkpoint.CheckpointInfo{
+			"Worker": {
+				Enabled: true,
+				Ready:   true,
+				Hash:    "abc123def4567890",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateGrovePodCliqueSet() error = %v", err)
+	}
+
+	if len(got.Spec.Template.Cliques) != 1 {
+		t.Fatalf("expected 1 clique, got %d", len(got.Spec.Template.Cliques))
+	}
+
+	annotations := got.Spec.Template.Cliques[0].Annotations
+	assert.Equal(t, "default-test-dgd-abc12345", annotations[commonconsts.AnnotationDynNamespace])
+}
+
 func TestIsWorkerComponent(t *testing.T) {
 	workers := []string{commonconsts.ComponentTypeWorker, commonconsts.ComponentTypePrefill, commonconsts.ComponentTypeDecode}
 	nonWorkers := []string{commonconsts.ComponentTypeFrontend, commonconsts.ComponentTypePlanner, commonconsts.ComponentTypeEPP, "custom", ""}
@@ -6934,6 +7113,23 @@ func TestGenerateComponentContext_WorkerHashSuffix(t *testing.T) {
 	}
 	compCtx3 := generateComponentContext(component3, "dgd", "ns", 1, "kubernetes")
 	assert.Empty(t, compCtx3.WorkerHashSuffix)
+}
+
+func TestGetEffectiveDynamoNamespace(t *testing.T) {
+	assert.Equal(
+		t,
+		"ns-dgd-abc123",
+		GetEffectiveDynamoNamespace(
+			commonconsts.ComponentTypeWorker,
+			"ns-dgd",
+			map[string]string{commonconsts.KubeLabelDynamoWorkerHash: "abc123"},
+		),
+	)
+	assert.Equal(
+		t,
+		"ns-dgd",
+		GetEffectiveDynamoNamespace(commonconsts.ComponentTypeFrontend, "ns-dgd", nil),
+	)
 }
 
 func TestWorkerDefaults_WorkerHashSuffixEnvVar(t *testing.T) {

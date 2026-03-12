@@ -1213,13 +1213,23 @@ func setMetricsLabels(labels map[string]string, dynamoGraphDeployment *v1alpha1.
 	labels[commonconsts.KubeLabelMetricsEnabled] = commonconsts.KubeLabelValueTrue
 }
 
+func getWorkerHashSuffix(componentType string, labels map[string]string) string {
+	if IsWorkerComponent(componentType) && labels[commonconsts.KubeLabelDynamoWorkerHash] != "" {
+		return labels[commonconsts.KubeLabelDynamoWorkerHash]
+	}
+	return ""
+}
+
+func GetEffectiveDynamoNamespace(componentType string, dynamoNamespace string, labels map[string]string) string {
+	workerHashSuffix := getWorkerHashSuffix(componentType, labels)
+	if workerHashSuffix == "" {
+		return dynamoNamespace
+	}
+	return dynamoNamespace + "-" + workerHashSuffix
+}
+
 func generateComponentContext(component *v1alpha1.DynamoComponentDeploymentSharedSpec, parentGraphDeploymentName string, namespace string, numberOfNodes int32, discoveryBackend configv1alpha1.DiscoveryBackend) ComponentContext {
 	dynamoNamespace := v1alpha1.ComputeDynamoNamespace(component.GlobalDynamoNamespace, namespace, parentGraphDeploymentName)
-
-	var workerHashSuffix string
-	if IsWorkerComponent(component.ComponentType) && component.Labels[commonconsts.KubeLabelDynamoWorkerHash] != "" {
-		workerHashSuffix = component.Labels[commonconsts.KubeLabelDynamoWorkerHash]
-	}
 
 	componentContext := ComponentContext{
 		numberOfNodes:                  numberOfNodes,
@@ -1229,7 +1239,7 @@ func generateComponentContext(component *v1alpha1.DynamoComponentDeploymentShare
 		DiscoveryBackend:               discoveryBackend,
 		DynamoNamespace:                dynamoNamespace,
 		EPPConfig:                      component.EPPConfig,
-		WorkerHashSuffix:               workerHashSuffix,
+		WorkerHashSuffix:               getWorkerHashSuffix(component.ComponentType, component.Labels),
 	}
 	return componentContext
 }
@@ -1428,7 +1438,13 @@ func GenerateGrovePodCliqueSet(
 				return nil, fmt.Errorf("failed to generate labels: %w", err)
 			}
 			clique.Labels = labels
-			annotations, err := generateAnnotations(component)
+			annotations, err := generateAnnotations(
+				component,
+				dynamoDeployment.Name,
+				dynamoDeployment.Namespace,
+				string(discoveryBackend),
+				checkpointInfo,
+			)
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate annotations: %w", err)
 			}
@@ -1519,7 +1535,13 @@ func generateLabels(
 	return labels, nil
 }
 
-func generateAnnotations(component *v1alpha1.DynamoComponentDeploymentSharedSpec) (map[string]string, error) {
+func generateAnnotations(
+	component *v1alpha1.DynamoComponentDeploymentSharedSpec,
+	parentGraphDeploymentName string,
+	parentGraphDeploymentNamespace string,
+	discoveryBackend string,
+	checkpointInfo *checkpoint.CheckpointInfo,
+) (map[string]string, error) {
 	annotations := make(map[string]string)
 	if component.Annotations != nil {
 		err := mergo.Merge(&annotations, component.Annotations, mergo.WithOverride)
@@ -1532,6 +1554,16 @@ func generateAnnotations(component *v1alpha1.DynamoComponentDeploymentSharedSpec
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge extraPodMetadata annotations: %w", err)
 		}
+	}
+	if checkpointInfo != nil && checkpointInfo.Enabled && checkpointInfo.Ready && component.DynamoNamespace != nil {
+		annotations = checkpoint.InjectPodInfoAnnotations(
+			annotations,
+			GetEffectiveDynamoNamespace(component.ComponentType, *component.DynamoNamespace, component.Labels),
+			component.ComponentType,
+			parentGraphDeploymentName,
+			parentGraphDeploymentNamespace,
+			discoveryBackend,
+		)
 	}
 	return annotations, nil
 }
