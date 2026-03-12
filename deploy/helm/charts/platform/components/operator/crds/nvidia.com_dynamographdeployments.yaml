@@ -888,6 +888,7 @@ spec:
                           checkpointRef:
                             description: |-
                               CheckpointRef references an existing Checkpoint CR to use
+                              This must be the checkpoint CR name, which is the deterministic 16-character hash of spec.identity
                               If specified, Identity is ignored and this checkpoint is used directly
                             type: string
                           enabled:
@@ -11455,24 +11456,6 @@ spec:
             status:
               description: Status reflects the current observed state of this graph deployment.
               properties:
-                checkpoints:
-                  additionalProperties:
-                    description: ServiceCheckpointStatus contains checkpoint information for a single service.
-                    properties:
-                      checkpointName:
-                        description: CheckpointName is the name of the associated Checkpoint CR
-                        type: string
-                      identityHash:
-                        description: IdentityHash is the computed hash of the checkpoint identity
-                        type: string
-                      ready:
-                        description: Ready indicates if the checkpoint is ready for use
-                        type: boolean
-                    type: object
-                  description: |-
-                    Checkpoints contains per-service checkpoint status information.
-                    The map key is the service name from spec.services.
-                  type: object
                 conditions:
                   description: |-
                     Conditions contains the latest observed conditions of the graph deployment.

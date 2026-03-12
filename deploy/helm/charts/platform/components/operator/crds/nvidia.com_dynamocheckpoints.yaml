@@ -33,10 +33,6 @@ spec:
           jsonPath: .status.phase
           name: Phase
           type: string
-        - description: Identity hash of the checkpoint
-          jsonPath: .status.identityHash
-          name: Hash
-          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -46,6 +42,7 @@ spec:
           description: |-
             DynamoCheckpoint is the Schema for the dynamocheckpoints API
             It represents a container checkpoint that can be used to restore pods to a warm state
+            The CR name is part of the contract: metadata.name must equal the deterministic 16-character hash of spec.identity
           properties:
             apiVersion:
               description: |-
@@ -67,58 +64,8 @@ spec:
             spec:
               description: DynamoCheckpointSpec defines the desired state of DynamoCheckpoint
               properties:
-                identity:
-                  description: Identity defines the inputs that determine checkpoint equivalence
-                  properties:
-                    backendFramework:
-                      description: BackendFramework is the runtime framework (vllm, sglang, trtllm)
-                      enum:
-                        - vllm
-                        - sglang
-                        - trtllm
-                      type: string
-                    dtype:
-                      description: Dtype is the data type (fp16, bf16, fp8, etc.)
-                      type: string
-                    dynamoVersion:
-                      description: |-
-                        DynamoVersion is the Dynamo platform version (optional)
-                        If not specified, version is not included in identity hash
-                        This ensures checkpoint compatibility across Dynamo releases
-                      type: string
-                    extraParameters:
-                      additionalProperties:
-                        type: string
-                      description: |-
-                        ExtraParameters are additional parameters that affect the checkpoint hash
-                        Use for any framework-specific or custom parameters not covered above
-                      type: object
-                    maxModelLen:
-                      description: MaxModelLen is the maximum sequence length
-                      format: int32
-                      minimum: 1
-                      type: integer
-                    model:
-                      description: Model is the model identifier (e.g., "meta-llama/Llama-3-70B")
-                      type: string
-                    pipelineParallelSize:
-                      default: 1
-                      description: PipelineParallelSize is the pipeline parallel configuration
-                      format: int32
-                      minimum: 1
-                      type: integer
-                    tensorParallelSize:
-                      default: 1
-                      description: TensorParallelSize is the tensor parallel configuration
-                      format: int32
-                      minimum: 1
-                      type: integer
-                  required:
-                    - backendFramework
-                    - model
-                  type: object
-                job:
-                  description: Job defines the configuration for the checkpoint creation Job
+                capture:
+                  description: Capture defines how the controller creates the checkpoint artifact
                   properties:
                     activeDeadlineSeconds:
                       default: 3600
@@ -8162,88 +8109,92 @@ spec:
                   required:
                     - podTemplateSpec
                   type: object
+                identity:
+                  description: Identity defines the inputs that determine checkpoint equivalence
+                  properties:
+                    backendFramework:
+                      description: BackendFramework is the runtime framework (vllm, sglang, trtllm)
+                      enum:
+                        - vllm
+                        - sglang
+                        - trtllm
+                      type: string
+                    dtype:
+                      description: Dtype is the data type (fp16, bf16, fp8, etc.)
+                      type: string
+                    dynamoVersion:
+                      description: |-
+                        DynamoVersion is the Dynamo platform version (optional)
+                        If not specified, version is not included in identity hash
+                        This ensures checkpoint compatibility across Dynamo releases
+                      type: string
+                    extraParameters:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        ExtraParameters are additional parameters that affect the checkpoint hash
+                        Use for any framework-specific or custom parameters not covered above
+                      type: object
+                    maxModelLen:
+                      description: MaxModelLen is the maximum sequence length
+                      format: int32
+                      minimum: 1
+                      type: integer
+                    model:
+                      description: Model is the model identifier (e.g., "meta-llama/Llama-3-70B")
+                      type: string
+                    pipelineParallelSize:
+                      default: 1
+                      description: PipelineParallelSize is the pipeline parallel configuration
+                      format: int32
+                      minimum: 1
+                      type: integer
+                    tensorParallelSize:
+                      default: 1
+                      description: TensorParallelSize is the tensor parallel configuration
+                      format: int32
+                      minimum: 1
+                      type: integer
+                  required:
+                    - backendFramework
+                    - model
+                  type: object
               required:
+                - capture
                 - identity
-                - job
               type: object
             status:
               description: DynamoCheckpointStatus defines the observed state of DynamoCheckpoint
               properties:
-                conditions:
-                  description: Conditions represent the latest available observations of the checkpoint's state
-                  items:
-                    description: Condition contains details for one aspect of the current state of this API Resource.
-                    properties:
-                      lastTransitionTime:
-                        description: |-
-                          lastTransitionTime is the last time the condition transitioned from one status to another.
-                          This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
-                        format: date-time
-                        type: string
-                      message:
-                        description: |-
-                          message is a human readable message indicating details about the transition.
-                          This may be an empty string.
-                        maxLength: 32768
-                        type: string
-                      observedGeneration:
-                        description: |-
-                          observedGeneration represents the .metadata.generation that the condition was set based upon.
-                          For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
-                          with respect to the current state of the instance.
-                        format: int64
-                        minimum: 0
-                        type: integer
-                      reason:
-                        description: |-
-                          reason contains a programmatic identifier indicating the reason for the condition's last transition.
-                          Producers of specific condition types may define expected values and meanings for this field,
-                          and whether the values are considered a guaranteed API.
-                          The value should be a CamelCase string.
-                          This field may not be empty.
-                        maxLength: 1024
-                        minLength: 1
-                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
-                        type: string
-                      status:
-                        description: status of the condition, one of True, False, Unknown.
-                        enum:
-                          - "True"
-                          - "False"
-                          - Unknown
-                        type: string
-                      type:
-                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
-                        maxLength: 316
-                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
-                        type: string
-                    required:
-                      - lastTransitionTime
-                      - message
-                      - reason
-                      - status
-                      - type
-                    type: object
-                  type: array
-                createdAt:
-                  description: CreatedAt is the timestamp when the checkpoint tar was created
-                  format: date-time
-                  type: string
-                identityHash:
-                  description: |-
-                    IdentityHash is the computed hash of the checkpoint identity
-                    This hash is used to identify equivalent checkpoints
-                  type: string
-                jobName:
-                  description: JobName is the name of the checkpoint creation Job
-                  type: string
-                location:
-                  description: |-
-                    Location is the full URI/path to the checkpoint in the storage backend
-                    For PVC: same as TarPath (e.g., /checkpoints/{hash}.tar)
-                    For S3: s3://bucket/prefix/{hash}.tar
-                    For OCI: oci://registry/repo:{hash}
-                  type: string
+                artifact:
+                  description: Artifact describes the stored checkpoint artifact
+                  properties:
+                    createdAt:
+                      description: CreatedAt is the timestamp when the checkpoint artifact became ready
+                      format: date-time
+                      type: string
+                    location:
+                      description: |-
+                        Location is the full URI/path to the checkpoint in the storage backend
+                        For PVC: /checkpoints/{hash}
+                        For S3: s3://bucket/prefix/{hash}.tar
+                        For OCI: oci://registry/repo:{hash}
+                      type: string
+                    storageType:
+                      description: StorageType indicates the storage backend type used for this checkpoint
+                      enum:
+                        - pvc
+                        - s3
+                        - oci
+                      type: string
+                  type: object
+                job:
+                  description: Job tracks the controller-owned checkpoint Job
+                  properties:
+                    name:
+                      description: Name is the name of the checkpoint creation Job
+                      type: string
+                  type: object
                 message:
                   description: Message provides additional information about the current state
                   type: string
@@ -8254,13 +8205,6 @@ spec:
                     - Creating
                     - Ready
                     - Failed
-                  type: string
-                storageType:
-                  description: StorageType indicates the storage backend type used for this checkpoint
-                  enum:
-                    - pvc
-                    - s3
-                    - oci
                   type: string
               type: object
           type: object

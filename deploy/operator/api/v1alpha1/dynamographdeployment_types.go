@@ -126,27 +126,10 @@ type DynamoGraphDeploymentStatus struct {
 	// Restart contains the status of the restart of the graph deployment.
 	// +optional
 	Restart *RestartStatus `json:"restart,omitempty"`
-	// Checkpoints contains per-service checkpoint status information.
-	// The map key is the service name from spec.services.
-	// +optional
-	Checkpoints map[string]ServiceCheckpointStatus `json:"checkpoints,omitempty"`
 	// RollingUpdate tracks the progress of operator manged rolling updates.
 	// Currently only supported for singl-node, non-Grove deployments (DCD/Deployment).
 	// +optional
 	RollingUpdate *RollingUpdateStatus `json:"rollingUpdate,omitempty"`
-}
-
-// ServiceCheckpointStatus contains checkpoint information for a single service.
-type ServiceCheckpointStatus struct {
-	// CheckpointName is the name of the associated Checkpoint CR
-	// +optional
-	CheckpointName string `json:"checkpointName,omitempty"`
-	// IdentityHash is the computed hash of the checkpoint identity
-	// +optional
-	IdentityHash string `json:"identityHash,omitempty"`
-	// Ready indicates if the checkpoint is ready for use
-	// +optional
-	Ready bool `json:"ready,omitempty"`
 }
 
 // RestartStatus contains the status of the restart of the graph deployment.

@@ -1511,13 +1511,6 @@ func generateLabels(
 		}
 	}
 
-	// Inject checkpoint labels AFTER user labels so they cannot be overridden.
-	var err error
-	labels, err = checkpoint.InjectCheckpointLabelsFromConfig(labels, component.Checkpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to inject checkpoint labels: %w", err)
-	}
-
 	// Only mark pods as restore targets when a concrete checkpoint is ready.
 	if checkpointInfo != nil && checkpointInfo.Enabled && checkpointInfo.Ready {
 		labels[commonconsts.KubeLabelIsRestoreTarget] = "true"

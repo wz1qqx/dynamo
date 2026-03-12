@@ -207,6 +207,7 @@ _Appears in:_
 
 DynamoCheckpoint is the Schema for the dynamocheckpoints API
 It represents a container checkpoint that can be used to restore pods to a warm state
+The CR name is part of the contract: metadata.name must equal the deterministic 16-character hash of spec.identity
 
 
 
@@ -221,6 +222,41 @@ It represents a container checkpoint that can be used to restore pods to a warm 
 | `status` _[DynamoCheckpointStatus](#dynamocheckpointstatus)_ |  |  |  |
 
 
+#### DynamoCheckpointArtifactStatus
+
+
+
+DynamoCheckpointArtifactStatus describes the stored checkpoint artifact.
+
+
+
+_Appears in:_
+- [DynamoCheckpointStatus](#dynamocheckpointstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `location` _string_ | Location is the full URI/path to the checkpoint in the storage backend<br />For PVC: /checkpoints/\{hash\}<br />For S3: s3://bucket/prefix/\{hash\}.tar<br />For OCI: oci://registry/repo:\{hash\} |  | Optional: \{\} <br /> |
+| `storageType` _[DynamoCheckpointStorageType](#dynamocheckpointstoragetype)_ | StorageType indicates the storage backend type used for this checkpoint |  | Enum: [pvc s3 oci] <br />Optional: \{\} <br /> |
+| `createdAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#time-v1-meta)_ | CreatedAt is the timestamp when the checkpoint artifact became ready |  | Optional: \{\} <br /> |
+
+
+#### DynamoCheckpointCaptureConfig
+
+
+
+DynamoCheckpointCaptureConfig defines how the controller creates a checkpoint.
+
+
+
+_Appears in:_
+- [DynamoCheckpointSpec](#dynamocheckpointspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `podTemplateSpec` _[PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#podtemplatespec-v1-core)_ | PodTemplateSpec allows customizing the checkpoint Job pod<br />This should include the container that runs the workload to be checkpointed |  | Required: \{\} <br /> |
+| `activeDeadlineSeconds` _integer_ | ActiveDeadlineSeconds specifies the maximum time the Job can run | 3600 | Optional: \{\} <br /> |
+| `backoffLimit` _integer_ | BackoffLimit specifies the number of retries before marking the Job failed | 3 | Optional: \{\} <br /> |
+| `ttlSecondsAfterFinished` _integer_ | TTLSecondsAfterFinished specifies how long to keep the Job after completion | 300 | Optional: \{\} <br /> |
 
 
 #### DynamoCheckpointIdentity
@@ -248,23 +284,20 @@ _Appears in:_
 | `extraParameters` _object (keys:string, values:string)_ | ExtraParameters are additional parameters that affect the checkpoint hash<br />Use for any framework-specific or custom parameters not covered above |  | Optional: \{\} <br /> |
 
 
-#### DynamoCheckpointJobConfig
+#### DynamoCheckpointJobStatus
 
 
 
-DynamoCheckpointJobConfig defines the configuration for the checkpoint creation Job
+DynamoCheckpointJobStatus tracks the controller-owned checkpoint Job.
 
 
 
 _Appears in:_
-- [DynamoCheckpointSpec](#dynamocheckpointspec)
+- [DynamoCheckpointStatus](#dynamocheckpointstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `podTemplateSpec` _[PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#podtemplatespec-v1-core)_ | PodTemplateSpec allows customizing the checkpoint Job pod<br />This should include the container that runs the workload to be checkpointed |  | Required: \{\} <br /> |
-| `activeDeadlineSeconds` _integer_ | ActiveDeadlineSeconds specifies the maximum time the Job can run | 3600 | Optional: \{\} <br /> |
-| `backoffLimit` _integer_ | BackoffLimit specifies the number of retries before marking the Job failed | 3 | Optional: \{\} <br /> |
-| `ttlSecondsAfterFinished` _integer_ | TTLSecondsAfterFinished specifies how long to keep the Job after completion | 300 | Optional: \{\} <br /> |
+| `name` _string_ | Name is the name of the checkpoint creation Job |  | Optional: \{\} <br /> |
 
 
 #### DynamoCheckpointPhase
@@ -301,7 +334,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `identity` _[DynamoCheckpointIdentity](#dynamocheckpointidentity)_ | Identity defines the inputs that determine checkpoint equivalence |  | Required: \{\} <br /> |
-| `job` _[DynamoCheckpointJobConfig](#dynamocheckpointjobconfig)_ | Job defines the configuration for the checkpoint creation Job |  | Required: \{\} <br /> |
+| `capture` _[DynamoCheckpointCaptureConfig](#dynamocheckpointcaptureconfig)_ | Capture defines how the controller creates the checkpoint artifact |  | Required: \{\} <br /> |
 
 
 #### DynamoCheckpointStatus
@@ -318,13 +351,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _[DynamoCheckpointPhase](#dynamocheckpointphase)_ | Phase represents the current phase of the checkpoint lifecycle |  | Enum: [Pending Creating Ready Failed] <br />Optional: \{\} <br /> |
-| `identityHash` _string_ | IdentityHash is the computed hash of the checkpoint identity<br />This hash is used to identify equivalent checkpoints |  | Optional: \{\} <br /> |
-| `location` _string_ | Location is the full URI/path to the checkpoint in the storage backend<br />For PVC: same as TarPath (e.g., /checkpoints/\{hash\}.tar)<br />For S3: s3://bucket/prefix/\{hash\}.tar<br />For OCI: oci://registry/repo:\{hash\} |  | Optional: \{\} <br /> |
-| `storageType` _[DynamoCheckpointStorageType](#dynamocheckpointstoragetype)_ | StorageType indicates the storage backend type used for this checkpoint |  | Enum: [pvc s3 oci] <br />Optional: \{\} <br /> |
-| `jobName` _string_ | JobName is the name of the checkpoint creation Job |  | Optional: \{\} <br /> |
-| `createdAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#time-v1-meta)_ | CreatedAt is the timestamp when the checkpoint tar was created |  | Optional: \{\} <br /> |
+| `artifact` _[DynamoCheckpointArtifactStatus](#dynamocheckpointartifactstatus)_ | Artifact describes the stored checkpoint artifact |  | Optional: \{\} <br /> |
+| `job` _[DynamoCheckpointJobStatus](#dynamocheckpointjobstatus)_ | Job tracks the controller-owned checkpoint Job |  | Optional: \{\} <br /> |
 | `message` _string_ | Message provides additional information about the current state |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#condition-v1-meta) array_ | Conditions represent the latest available observations of the checkpoint's state |  | Optional: \{\} <br /> |
 
 
 #### DynamoCheckpointStorageType
@@ -337,7 +366,7 @@ _Validation:_
 - Enum: [pvc s3 oci]
 
 _Appears in:_
-- [DynamoCheckpointStatus](#dynamocheckpointstatus)
+- [DynamoCheckpointArtifactStatus](#dynamocheckpointartifactstatus)
 
 
 
@@ -658,7 +687,6 @@ _Appears in:_
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#condition-v1-meta) array_ | Conditions contains the latest observed conditions of the graph deployment.<br />The slice is merged by type on patch updates. |  |  |
 | `services` _object (keys:string, values:[ServiceReplicaStatus](#servicereplicastatus))_ | Services contains per-service replica status information.<br />The map key is the service name from spec.services. |  | Optional: \{\} <br /> |
 | `restart` _[RestartStatus](#restartstatus)_ | Restart contains the status of the restart of the graph deployment. |  | Optional: \{\} <br /> |
-| `checkpoints` _object (keys:string, values:[ServiceCheckpointStatus](#servicecheckpointstatus))_ | Checkpoints contains per-service checkpoint status information.<br />The map key is the service name from spec.services. |  | Optional: \{\} <br /> |
 | `rollingUpdate` _[RollingUpdateStatus](#rollingupdatestatus)_ | RollingUpdate tracks the progress of operator manged rolling updates.<br />Currently only supported for singl-node, non-Grove deployments (DCD/Deployment). |  | Optional: \{\} <br /> |
 
 
@@ -1155,26 +1183,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `enabled` _boolean_ | Enabled indicates whether checkpointing is enabled for this service | false | Optional: \{\} <br /> |
 | `mode` _[CheckpointMode](#checkpointmode)_ | Mode defines how checkpoint creation is handled<br />- Auto: DGD controller creates Checkpoint CR automatically<br />- Manual: User must create Checkpoint CR | Auto | Enum: [Auto Manual] <br />Optional: \{\} <br /> |
-| `checkpointRef` _string_ | CheckpointRef references an existing Checkpoint CR to use<br />If specified, Identity is ignored and this checkpoint is used directly |  | Optional: \{\} <br /> |
+| `checkpointRef` _string_ | CheckpointRef references an existing Checkpoint CR to use<br />This must be the checkpoint CR name, which is the deterministic 16-character hash of spec.identity<br />If specified, Identity is ignored and this checkpoint is used directly |  | Optional: \{\} <br /> |
 | `identity` _[DynamoCheckpointIdentity](#dynamocheckpointidentity)_ | Identity defines the checkpoint identity for hash computation<br />Used when Mode is Auto or when looking up existing checkpoints<br />Required when checkpointRef is not specified |  | Optional: \{\} <br /> |
-
-
-#### ServiceCheckpointStatus
-
-
-
-ServiceCheckpointStatus contains checkpoint information for a single service.
-
-
-
-_Appears in:_
-- [DynamoGraphDeploymentStatus](#dynamographdeploymentstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `checkpointName` _string_ | CheckpointName is the name of the associated Checkpoint CR |  | Optional: \{\} <br /> |
-| `identityHash` _string_ | IdentityHash is the computed hash of the checkpoint identity |  | Optional: \{\} <br /> |
-| `ready` _boolean_ | Ready indicates if the checkpoint is ready for use |  | Optional: \{\} <br /> |
 
 
 #### ServiceReplicaStatus

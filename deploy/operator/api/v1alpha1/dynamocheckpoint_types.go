@@ -86,8 +86,8 @@ type DynamoCheckpointIdentity struct {
 	ExtraParameters map[string]string `json:"extraParameters,omitempty"`
 }
 
-// DynamoCheckpointJobConfig defines the configuration for the checkpoint creation Job
-type DynamoCheckpointJobConfig struct {
+// DynamoCheckpointCaptureConfig defines how the controller creates a checkpoint.
+type DynamoCheckpointCaptureConfig struct {
 	// PodTemplateSpec allows customizing the checkpoint Job pod
 	// This should include the container that runs the workload to be checkpointed
 	// +kubebuilder:validation:Required
@@ -115,34 +115,15 @@ type DynamoCheckpointSpec struct {
 	// +kubebuilder:validation:Required
 	Identity DynamoCheckpointIdentity `json:"identity"`
 
-	// Job defines the configuration for the checkpoint creation Job
+	// Capture defines how the controller creates the checkpoint artifact
 	// +kubebuilder:validation:Required
-	Job DynamoCheckpointJobConfig `json:"job"`
+	Capture DynamoCheckpointCaptureConfig `json:"capture"`
 }
 
-// DynamoCheckpointConditionType defines the types of conditions for DynamoCheckpoint
-type DynamoCheckpointConditionType string
-
-const (
-	// DynamoCheckpointConditionJobCreated indicates whether the checkpoint Job has been created
-	DynamoCheckpointConditionJobCreated DynamoCheckpointConditionType = "JobCreated"
-	// DynamoCheckpointConditionJobCompleted indicates whether the checkpoint Job has completed
-	DynamoCheckpointConditionJobCompleted DynamoCheckpointConditionType = "JobCompleted"
-)
-
-// DynamoCheckpointStatus defines the observed state of DynamoCheckpoint
-type DynamoCheckpointStatus struct {
-	// Phase represents the current phase of the checkpoint lifecycle
-	// +optional
-	Phase DynamoCheckpointPhase `json:"phase,omitempty"`
-
-	// IdentityHash is the computed hash of the checkpoint identity
-	// This hash is used to identify equivalent checkpoints
-	// +optional
-	IdentityHash string `json:"identityHash,omitempty"`
-
+// DynamoCheckpointArtifactStatus describes the stored checkpoint artifact.
+type DynamoCheckpointArtifactStatus struct {
 	// Location is the full URI/path to the checkpoint in the storage backend
-	// For PVC: same as TarPath (e.g., /checkpoints/{hash}.tar)
+	// For PVC: /checkpoints/{hash}
 	// For S3: s3://bucket/prefix/{hash}.tar
 	// For OCI: oci://registry/repo:{hash}
 	// +optional
@@ -152,21 +133,35 @@ type DynamoCheckpointStatus struct {
 	// +optional
 	StorageType DynamoCheckpointStorageType `json:"storageType,omitempty"`
 
-	// JobName is the name of the checkpoint creation Job
-	// +optional
-	JobName string `json:"jobName,omitempty"`
-
-	// CreatedAt is the timestamp when the checkpoint tar was created
+	// CreatedAt is the timestamp when the checkpoint artifact became ready
 	// +optional
 	CreatedAt *metav1.Time `json:"createdAt,omitempty"`
+}
+
+// DynamoCheckpointJobStatus tracks the controller-owned checkpoint Job.
+type DynamoCheckpointJobStatus struct {
+	// Name is the name of the checkpoint creation Job
+	// +optional
+	Name string `json:"name,omitempty"`
+}
+
+// DynamoCheckpointStatus defines the observed state of DynamoCheckpoint
+type DynamoCheckpointStatus struct {
+	// Phase represents the current phase of the checkpoint lifecycle
+	// +optional
+	Phase DynamoCheckpointPhase `json:"phase,omitempty"`
+
+	// Artifact describes the stored checkpoint artifact
+	// +optional
+	Artifact *DynamoCheckpointArtifactStatus `json:"artifact,omitempty"`
+
+	// Job tracks the controller-owned checkpoint Job
+	// +optional
+	Job *DynamoCheckpointJobStatus `json:"job,omitempty"`
 
 	// Message provides additional information about the current state
 	// +optional
 	Message string `json:"message,omitempty"`
-
-	// Conditions represent the latest available observations of the checkpoint's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -175,12 +170,12 @@ type DynamoCheckpointStatus struct {
 // +kubebuilder:printcolumn:name="Model",type="string",JSONPath=".spec.identity.model",description="Model identifier"
 // +kubebuilder:printcolumn:name="Backend",type="string",JSONPath=".spec.identity.backendFramework",description="Backend framework"
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="Current phase of the checkpoint"
-// +kubebuilder:printcolumn:name="Hash",type="string",JSONPath=".status.identityHash",description="Identity hash of the checkpoint"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.spec.identity) || self.spec.identity == oldSelf.spec.identity",message="spec.identity is immutable after creation"
 
 // DynamoCheckpoint is the Schema for the dynamocheckpoints API
 // It represents a container checkpoint that can be used to restore pods to a warm state
+// The CR name is part of the contract: metadata.name must equal the deterministic 16-character hash of spec.identity
 type DynamoCheckpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

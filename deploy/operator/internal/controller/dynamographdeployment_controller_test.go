@@ -23,11 +23,13 @@ import (
 
 	configv1alpha1 "github.com/ai-dynamo/dynamo/deploy/operator/api/config/v1alpha1"
 	"github.com/ai-dynamo/dynamo/deploy/operator/api/v1alpha1"
+	"github.com/ai-dynamo/dynamo/deploy/operator/internal/checkpoint"
 	commonconsts "github.com/ai-dynamo/dynamo/deploy/operator/internal/consts"
 	"github.com/ai-dynamo/dynamo/deploy/operator/internal/controller_common"
 	grovev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
 	"github.com/onsi/gomega"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -339,6 +341,97 @@ func TestDynamoGraphDeploymentReconciler_reconcileScalingAdapters(t *testing.T) 
 				}
 			}
 		})
+	}
+}
+
+func TestDynamoGraphDeploymentReconciler_createCheckpointCR_reusesExistingCapture(t *testing.T) {
+	if err := v1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		t.Fatalf("Failed to add v1alpha1 to scheme: %v", err)
+	}
+
+	ctx := context.Background()
+	identity := v1alpha1.DynamoCheckpointIdentity{
+		Model:            "meta-llama/Llama-2-7b-hf",
+		BackendFramework: "vllm",
+	}
+	hash, err := checkpoint.ComputeCheckpointName(identity)
+	if err != nil {
+		t.Fatalf("Failed to compute checkpoint hash: %v", err)
+	}
+
+	existing := &v1alpha1.DynamoCheckpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      hash,
+			Namespace: "default",
+		},
+		Spec: v1alpha1.DynamoCheckpointSpec{
+			Identity: identity,
+			Capture: v1alpha1.DynamoCheckpointCaptureConfig{
+				PodTemplateSpec: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name:  "main",
+							Image: "keep-existing:latest",
+						}},
+					},
+				},
+			},
+		},
+	}
+
+	reconciler := &DynamoGraphDeploymentReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme.Scheme).
+			WithObjects(existing).
+			Build(),
+		Config:   &configv1alpha1.OperatorConfiguration{},
+		Recorder: record.NewFakeRecorder(10),
+	}
+
+	dgd := &v1alpha1.DynamoGraphDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-dgd",
+			Namespace: "default",
+		},
+	}
+	component := &v1alpha1.DynamoComponentDeploymentSharedSpec{
+		ComponentType: string(commonconsts.ComponentTypeWorker),
+		Checkpoint: &v1alpha1.ServiceCheckpointConfig{
+			Enabled: true,
+			Mode:    v1alpha1.CheckpointModeAuto,
+			Identity: &v1alpha1.DynamoCheckpointIdentity{
+				Model:                identity.Model,
+				BackendFramework:     identity.BackendFramework,
+				TensorParallelSize:   1,
+				PipelineParallelSize: 1,
+				ExtraParameters:      map[string]string{},
+			},
+		},
+		ExtraPodSpec: &v1alpha1.ExtraPodSpec{
+			MainContainer: &corev1.Container{
+				Name:  "main",
+				Image: "new-writer:latest",
+			},
+		},
+	}
+
+	ckpt, err := reconciler.createCheckpointCR(ctx, dgd, "worker", component)
+	if err != nil {
+		t.Fatalf("createCheckpointCR() error = %v", err)
+	}
+	if ckpt.Name != hash {
+		t.Fatalf("createCheckpointCR() returned checkpoint %s, want %s", ckpt.Name, hash)
+	}
+
+	updated := &v1alpha1.DynamoCheckpoint{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: hash, Namespace: "default"}, updated); err != nil {
+		t.Fatalf("Failed to get checkpoint: %v", err)
+	}
+	if len(updated.Spec.Capture.PodTemplateSpec.Spec.Containers) != 1 {
+		t.Fatalf("expected one capture container, got %d", len(updated.Spec.Capture.PodTemplateSpec.Spec.Containers))
+	}
+	if updated.Spec.Capture.PodTemplateSpec.Spec.Containers[0].Image != "keep-existing:latest" {
+		t.Fatalf("existing capture image was mutated to %s", updated.Spec.Capture.PodTemplateSpec.Spec.Containers[0].Image)
 	}
 }
 

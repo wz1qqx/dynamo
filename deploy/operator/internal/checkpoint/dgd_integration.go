@@ -25,24 +25,35 @@ import (
 	nvidiacomv1alpha1 "github.com/ai-dynamo/dynamo/deploy/operator/api/v1alpha1"
 	"github.com/ai-dynamo/dynamo/deploy/operator/internal/consts"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // getCheckpointInfoFromCheckpoint extracts CheckpointInfo from a DynamoCheckpoint CR
-func getCheckpointInfoFromCheckpoint(ckpt *nvidiacomv1alpha1.DynamoCheckpoint) *CheckpointInfo {
+func getCheckpointInfoFromCheckpoint(ckpt *nvidiacomv1alpha1.DynamoCheckpoint) (*CheckpointInfo, error) {
+	hash, err := ComputeCheckpointName(ckpt.Spec.Identity)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute checkpoint name for %s: %w", ckpt.Name, err)
+	}
+	if ckpt.Name != hash {
+		return nil, fmt.Errorf("checkpoint %s must be named %s to match spec.identity", ckpt.Name, hash)
+	}
+
 	info := &CheckpointInfo{
 		Enabled:        true,
 		CheckpointName: ckpt.Name,
-		Hash:           ckpt.Status.IdentityHash,
-		Location:       ckpt.Status.Location,
-		StorageType:    ckpt.Status.StorageType,
+		Hash:           hash,
 		Ready:          ckpt.Status.Phase == nvidiacomv1alpha1.DynamoCheckpointPhaseReady,
 		Identity:       &ckpt.Spec.Identity,
 	}
+	if ckpt.Status.Artifact != nil {
+		info.Location = ckpt.Status.Artifact.Location
+		info.StorageType = ckpt.Status.Artifact.StorageType
+	}
 
-	return info
+	return info, nil
 }
 
 // getPVCBasePath returns the PVC base path from storage config.
@@ -107,7 +118,7 @@ func ResolveCheckpointForService(
 		}
 
 		// Extract all checkpoint info including identity from the CR
-		return getCheckpointInfoFromCheckpoint(ckpt), nil
+		return getCheckpointInfoFromCheckpoint(ckpt)
 	}
 
 	// Otherwise, compute hash from identity and look up checkpoint
@@ -126,29 +137,19 @@ func ResolveCheckpointForService(
 		Hash:     hash,
 	}
 
-	// Look for existing checkpoint with matching hash using label selector
-	checkpointList := &nvidiacomv1alpha1.DynamoCheckpointList{}
-	if err = c.List(ctx, checkpointList,
-		client.InNamespace(namespace),
-		client.MatchingLabels{consts.KubeLabelCheckpointHash: info.Hash},
-	); err != nil {
-		return nil, fmt.Errorf("failed to list checkpoints: %w", err)
+	ckpt := &nvidiacomv1alpha1.DynamoCheckpoint{}
+	err = c.Get(ctx, types.NamespacedName{
+		Namespace: namespace,
+		Name:      info.Hash,
+	}, ckpt)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return info, nil
+		}
+		return nil, fmt.Errorf("failed to get checkpoint %s: %w", info.Hash, err)
 	}
 
-	// Return the first matching checkpoint (there should be at most one per hash)
-	if len(checkpointList.Items) > 0 {
-		ckpt := &checkpointList.Items[0]
-		// Merge checkpoint info from the CR (overrides the computed values)
-		foundInfo := getCheckpointInfoFromCheckpoint(ckpt)
-		// Keep the hash and identity we computed from the config
-		foundInfo.Hash = info.Hash
-		foundInfo.Identity = info.Identity
-		return foundInfo, nil
-	}
-
-	// No existing checkpoint found
-	// In Auto mode, the controller should create one
-	return info, nil
+	return getCheckpointInfoFromCheckpoint(ckpt)
 }
 
 // InjectCheckpointEnvVars adds checkpoint-related environment variables to a restored/DGD container.
@@ -440,27 +441,4 @@ func InjectCheckpointIntoPodSpec(
 	InjectCheckpointEnvVars(mainContainer, info, checkpointConfig)
 
 	return nil
-}
-
-// InjectCheckpointLabelsFromConfig adds checkpoint identity labels to a label map based on config.
-// Restore trigger labels are injected only when a concrete restore request is prepared.
-func InjectCheckpointLabelsFromConfig(labels map[string]string, config *nvidiacomv1alpha1.ServiceCheckpointConfig) (map[string]string, error) {
-	if config == nil || !config.Enabled {
-		return labels, nil
-	}
-
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-
-	// Compute hash from identity if provided
-	if config.Identity != nil {
-		hash, err := ComputeIdentityHash(*config.Identity)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute identity hash for labels: %w", err)
-		}
-		labels[consts.KubeLabelCheckpointHash] = hash
-	}
-
-	return labels, nil
 }

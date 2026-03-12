@@ -193,6 +193,7 @@ type ServiceCheckpointConfig struct {
 	Mode CheckpointMode `json:"mode,omitempty"`
 
 	// CheckpointRef references an existing Checkpoint CR to use
+	// This must be the checkpoint CR name, which is the deterministic 16-character hash of spec.identity
 	// If specified, Identity is ignored and this checkpoint is used directly
 	// +optional
 	CheckpointRef *string `json:"checkpointRef,omitempty"`
