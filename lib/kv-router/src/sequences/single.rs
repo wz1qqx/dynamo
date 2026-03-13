@@ -36,18 +36,6 @@ const CHECK_EXPIRY_FREQUENCY: Duration = Duration::from_secs(30);
 // TODO: use the common request_id if it exists in the repo
 pub type RequestId = String;
 
-/// Active sequences data for a single RequestId.
-pub struct RequestActiveSequenceData {
-    /// The active sequence of blocks for this request.
-    active_seq: Vec<(SequenceHash, Arc<()>)>,
-    /// The timestamp of the last activity for this request.
-    timestamp: Instant,
-    /// The number of prefill tokens for this request.
-    prefill_tokens: usize,
-    /// The expected output tokens for this request (used for resource estimation).
-    expected_output_tokens: u32,
-}
-
 /// A multi-request sequence manager that handles multiple active sequences with shared KV cache
 #[derive(Debug, Getters)]
 pub struct ActiveSequences {
