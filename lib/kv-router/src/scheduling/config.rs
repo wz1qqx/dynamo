@@ -23,7 +23,7 @@ pub struct RouterConfigOverride {
 }
 
 /// KV Router configuration parameters
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[validate(schema(function = "validate_kv_router_config"))]
 pub struct KvRouterConfig {
     #[validate(range(min = 0.0))]
@@ -91,6 +91,13 @@ pub struct KvRouterConfig {
     /// requests, firing a pin_prefix call (with TTL) to the worker after generation completes.
     /// When false (default), cache_control is ignored and no cache_control client is created.
     pub router_enable_cache_control: bool,
+
+    /// Component name of a standalone KV indexer to use for overlap scoring.
+    /// When set, the router creates a `Remote` indexer that queries the standalone
+    /// indexer via the request plane instead of maintaining a local radix tree.
+    /// The standalone indexer handles its own event subscription and discovery.
+    #[serde(default)]
+    pub remote_indexer_component: Option<String>,
 }
 
 impl Default for KvRouterConfig {
@@ -112,6 +119,7 @@ impl Default for KvRouterConfig {
             router_queue_threshold: None,
             router_event_threads: 4,
             router_enable_cache_control: false,
+            remote_indexer_component: None,
         }
     }
 }

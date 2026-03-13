@@ -97,7 +97,9 @@ pub async fn run_server(config: IndexerConfig) -> anyhow::Result<()> {
 
     registry.signal_ready();
 
-    let state = Arc::new(AppState { registry });
+    let state = Arc::new(AppState {
+        registry: Arc::new(registry),
+    });
 
     let app = create_router(state);
     let listener = TcpListener::bind(("0.0.0.0", config.port)).await?;

@@ -16,7 +16,7 @@ use crate::protocols::{LocalBlockHash, WorkerId, compute_block_hash_for_seq};
 use super::registry::{IndexerKey, WorkerRegistry};
 
 pub struct AppState {
-    pub registry: WorkerRegistry,
+    pub registry: Arc<WorkerRegistry>,
 }
 
 fn default_tenant() -> String {
