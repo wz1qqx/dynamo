@@ -58,13 +58,6 @@ func testIdentity() nvidiacomv1alpha1.DynamoCheckpointIdentity {
 	}
 }
 
-func testIdentityHash(t *testing.T) string {
-	t.Helper()
-	hash, err := ComputeIdentityHash(testIdentity())
-	require.NoError(t, err)
-	return hash
-}
-
 func testPodSpec() *corev1.PodSpec {
 	return &corev1.PodSpec{
 		Containers: []corev1.Container{{
@@ -95,7 +88,8 @@ func TestHelpers(t *testing.T) {
 	assert.Equal(t, "/checkpoints", GetPVCBasePath(testPVCConfig()))
 
 	// getCheckpointInfoFromCheckpoint — ready
-	hash := testIdentityHash(t)
+	hash, err := ComputeIdentityHash(testIdentity())
+	require.NoError(t, err)
 	ckpt := &nvidiacomv1alpha1.DynamoCheckpoint{
 		ObjectMeta: metav1.ObjectMeta{Name: hash},
 		Spec:       nvidiacomv1alpha1.DynamoCheckpointSpec{Identity: testIdentity()},
@@ -367,7 +361,8 @@ func TestResolveCheckpointForService(t *testing.T) {
 	})
 
 	t.Run("checkpointRef resolves ready CR", func(t *testing.T) {
-		hash := testIdentityHash(t)
+		hash, err := ComputeIdentityHash(testIdentity())
+		require.NoError(t, err)
 		ckpt := &nvidiacomv1alpha1.DynamoCheckpoint{
 			ObjectMeta: metav1.ObjectMeta{Name: hash, Namespace: testNamespace},
 			Spec:       nvidiacomv1alpha1.DynamoCheckpointSpec{Identity: testIdentity()},
@@ -392,7 +387,8 @@ func TestResolveCheckpointForService(t *testing.T) {
 	})
 
 	t.Run("checkpointRef resolves not-ready CR", func(t *testing.T) {
-		hash := testIdentityHash(t)
+		hash, err := ComputeIdentityHash(testIdentity())
+		require.NoError(t, err)
 		ckpt := &nvidiacomv1alpha1.DynamoCheckpoint{
 			ObjectMeta: metav1.ObjectMeta{Name: hash, Namespace: testNamespace},
 			Spec:       nvidiacomv1alpha1.DynamoCheckpointSpec{Identity: testIdentity()},

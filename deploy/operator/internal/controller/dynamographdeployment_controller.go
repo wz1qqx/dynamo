@@ -20,6 +20,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -1279,7 +1280,27 @@ func (r *DynamoGraphDeploymentReconciler) createCheckpointCR(
 	existing := &nvidiacomv1alpha1.DynamoCheckpoint{}
 	key := types.NamespacedName{Name: ckptName, Namespace: dynamoDeployment.Namespace}
 	if err := r.Get(ctx, key, existing); err == nil {
-		if !checkpoint.SameCheckpointIdentity(existing.Spec.Identity, checkpointIdentity) {
+		existingIdentity := existing.Spec.Identity
+		if existingIdentity.TensorParallelSize == 0 {
+			existingIdentity.TensorParallelSize = 1
+		}
+		if existingIdentity.PipelineParallelSize == 0 {
+			existingIdentity.PipelineParallelSize = 1
+		}
+		if existingIdentity.ExtraParameters == nil {
+			existingIdentity.ExtraParameters = map[string]string{}
+		}
+		normalizedIdentity := checkpointIdentity
+		if normalizedIdentity.TensorParallelSize == 0 {
+			normalizedIdentity.TensorParallelSize = 1
+		}
+		if normalizedIdentity.PipelineParallelSize == 0 {
+			normalizedIdentity.PipelineParallelSize = 1
+		}
+		if normalizedIdentity.ExtraParameters == nil {
+			normalizedIdentity.ExtraParameters = map[string]string{}
+		}
+		if !reflect.DeepEqual(existingIdentity, normalizedIdentity) {
 			return nil, fmt.Errorf("checkpoint %s already exists with a different identity", ckptName)
 		}
 		return existing, nil
@@ -1317,7 +1338,27 @@ func (r *DynamoGraphDeploymentReconciler) createCheckpointCR(
 			if getErr := r.Get(ctx, key, existing); getErr != nil {
 				return nil, fmt.Errorf("failed to get checkpoint %s after already exists: %w", ckptName, getErr)
 			}
-			if !checkpoint.SameCheckpointIdentity(existing.Spec.Identity, checkpointIdentity) {
+			existingIdentity := existing.Spec.Identity
+			if existingIdentity.TensorParallelSize == 0 {
+				existingIdentity.TensorParallelSize = 1
+			}
+			if existingIdentity.PipelineParallelSize == 0 {
+				existingIdentity.PipelineParallelSize = 1
+			}
+			if existingIdentity.ExtraParameters == nil {
+				existingIdentity.ExtraParameters = map[string]string{}
+			}
+			normalizedIdentity := checkpointIdentity
+			if normalizedIdentity.TensorParallelSize == 0 {
+				normalizedIdentity.TensorParallelSize = 1
+			}
+			if normalizedIdentity.PipelineParallelSize == 0 {
+				normalizedIdentity.PipelineParallelSize = 1
+			}
+			if normalizedIdentity.ExtraParameters == nil {
+				normalizedIdentity.ExtraParameters = map[string]string{}
+			}
+			if !reflect.DeepEqual(existingIdentity, normalizedIdentity) {
 				return nil, fmt.Errorf("checkpoint %s already exists with a different identity", ckptName)
 			}
 			return existing, nil

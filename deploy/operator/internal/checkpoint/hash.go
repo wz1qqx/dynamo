@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	nvidiacomv1alpha1 "github.com/ai-dynamo/dynamo/deploy/operator/api/v1alpha1"
 )
@@ -67,12 +66,6 @@ func ComputeIdentityHash(identity nvidiacomv1alpha1.DynamoCheckpointIdentity) (s
 	// Return first 16 characters of hex encoding (64 bits)
 	// Provides excellent collision resistance while remaining readable
 	return hex.EncodeToString(hash[:])[:16], nil
-}
-
-// SameCheckpointIdentity reports whether two identities are equivalent under the
-// same normalization rules used for checkpoint hashing.
-func SameCheckpointIdentity(a, b nvidiacomv1alpha1.DynamoCheckpointIdentity) bool {
-	return reflect.DeepEqual(normalizeIdentity(a), normalizeIdentity(b))
 }
 
 func normalizeIdentity(identity nvidiacomv1alpha1.DynamoCheckpointIdentity) normalizedIdentity {

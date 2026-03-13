@@ -1213,23 +1213,12 @@ func setMetricsLabels(labels map[string]string, dynamoGraphDeployment *v1alpha1.
 	labels[commonconsts.KubeLabelMetricsEnabled] = commonconsts.KubeLabelValueTrue
 }
 
-func getWorkerHashSuffix(componentType string, labels map[string]string) string {
-	if IsWorkerComponent(componentType) && labels[commonconsts.KubeLabelDynamoWorkerHash] != "" {
-		return labels[commonconsts.KubeLabelDynamoWorkerHash]
-	}
-	return ""
-}
-
-func GetEffectiveDynamoNamespace(componentType string, dynamoNamespace string, labels map[string]string) string {
-	workerHashSuffix := getWorkerHashSuffix(componentType, labels)
-	if workerHashSuffix == "" {
-		return dynamoNamespace
-	}
-	return dynamoNamespace + "-" + workerHashSuffix
-}
-
 func generateComponentContext(component *v1alpha1.DynamoComponentDeploymentSharedSpec, parentGraphDeploymentName string, namespace string, numberOfNodes int32, discoveryBackend configv1alpha1.DiscoveryBackend) ComponentContext {
 	dynamoNamespace := v1alpha1.ComputeDynamoNamespace(component.GlobalDynamoNamespace, namespace, parentGraphDeploymentName)
+	workerHashSuffix := ""
+	if IsWorkerComponent(component.ComponentType) && component.Labels[commonconsts.KubeLabelDynamoWorkerHash] != "" {
+		workerHashSuffix = component.Labels[commonconsts.KubeLabelDynamoWorkerHash]
+	}
 
 	componentContext := ComponentContext{
 		numberOfNodes:                  numberOfNodes,
@@ -1239,7 +1228,7 @@ func generateComponentContext(component *v1alpha1.DynamoComponentDeploymentShare
 		DiscoveryBackend:               discoveryBackend,
 		DynamoNamespace:                dynamoNamespace,
 		EPPConfig:                      component.EPPConfig,
-		WorkerHashSuffix:               getWorkerHashSuffix(component.ComponentType, component.Labels),
+		WorkerHashSuffix:               workerHashSuffix,
 	}
 	return componentContext
 }
@@ -1551,10 +1540,17 @@ func generateAnnotations(
 			return nil, fmt.Errorf("failed to merge extraPodMetadata annotations: %w", err)
 		}
 	}
-	if checkpointInfo != nil && checkpointInfo.Enabled && checkpointInfo.Ready && component.DynamoNamespace != nil {
+	if checkpointInfo != nil && checkpointInfo.Enabled && checkpointInfo.Ready {
+		if component.DynamoNamespace == nil || *component.DynamoNamespace == "" {
+			return nil, fmt.Errorf("restore target requires a dynamoNamespace")
+		}
+		dynamoNamespace := *component.DynamoNamespace
+		if IsWorkerComponent(component.ComponentType) && component.Labels[commonconsts.KubeLabelDynamoWorkerHash] != "" {
+			dynamoNamespace += "-" + component.Labels[commonconsts.KubeLabelDynamoWorkerHash]
+		}
 		annotations = checkpoint.InjectPodInfoAnnotations(
 			annotations,
-			GetEffectiveDynamoNamespace(component.ComponentType, *component.DynamoNamespace, component.Labels),
+			dynamoNamespace,
 			discoveryBackend,
 		)
 	}
@@ -1724,8 +1720,10 @@ func GenerateBasePodSpecForController(
 	}
 
 	// Generate base PodSpec with standard env vars using merged component envs
-	// For controller usage, we may not have serviceName, so use the component name as fallback
-	serviceName := dynComponent.Name
+	serviceName := dynComponent.Spec.ServiceName
+	if serviceName == "" {
+		serviceName = dynComponent.Name
+	}
 	podSpec, err := GenerateBasePodSpec(
 		componentSpec,
 		backendFramework,

@@ -1080,17 +1080,17 @@ func (r *DynamoComponentDeploymentReconciler) generatePodTemplateSpec(ctx contex
 		if checkpointInfo.Hash != "" {
 			podLabels[commonconsts.KubeLabelCheckpointHash] = checkpointInfo.Hash
 		}
-		dynamoNamespace := ""
-		if opt.dynamoComponentDeployment.Spec.DynamoNamespace != nil {
-			dynamoNamespace = *opt.dynamoComponentDeployment.Spec.DynamoNamespace
+		if opt.dynamoComponentDeployment.Spec.DynamoNamespace == nil || *opt.dynamoComponentDeployment.Spec.DynamoNamespace == "" {
+			return nil, fmt.Errorf("restore target %s is missing spec.dynamoNamespace", opt.dynamoComponentDeployment.Name)
+		}
+		dynamoNamespace := *opt.dynamoComponentDeployment.Spec.DynamoNamespace
+		if dynamo.IsWorkerComponent(opt.dynamoComponentDeployment.Spec.ComponentType) &&
+			opt.dynamoComponentDeployment.Spec.Labels[commonconsts.KubeLabelDynamoWorkerHash] != "" {
+			dynamoNamespace += "-" + opt.dynamoComponentDeployment.Spec.Labels[commonconsts.KubeLabelDynamoWorkerHash]
 		}
 		podAnnotations = checkpoint.InjectPodInfoAnnotations(
 			podAnnotations,
-			dynamo.GetEffectiveDynamoNamespace(
-				opt.dynamoComponentDeployment.Spec.ComponentType,
-				dynamoNamespace,
-				opt.dynamoComponentDeployment.Spec.Labels,
-			),
+			dynamoNamespace,
 			string(commonController.GetDiscoveryBackend(r.Config.Discovery.Backend, resourceAnnotations)),
 		)
 	}

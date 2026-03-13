@@ -34,6 +34,7 @@ import (
 	grovev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -6991,6 +6992,23 @@ func TestGenerateGrovePodCliqueSet_RestorePodInfoAnnotations_WithWorkerSuffix(t 
 	assert.Equal(t, "default-test-dgd-abc12345", annotations[commonconsts.AnnotationDynNamespace])
 }
 
+func TestGenerateAnnotations_RestoreTargetRequiresDynamoNamespace(t *testing.T) {
+	_, err := generateAnnotations(
+		&v1alpha1.DynamoComponentDeploymentSharedSpec{
+			ComponentType: commonconsts.ComponentTypeWorker,
+		},
+		"kubernetes",
+		&checkpoint.CheckpointInfo{
+			Enabled: true,
+			Ready:   true,
+			Hash:    "abc123def4567890",
+		},
+	)
+
+	require.Error(t, err)
+	assert.Equal(t, "restore target requires a dynamoNamespace", err.Error())
+}
+
 func TestIsWorkerComponent(t *testing.T) {
 	workers := []string{commonconsts.ComponentTypeWorker, commonconsts.ComponentTypePrefill, commonconsts.ComponentTypeDecode}
 	nonWorkers := []string{commonconsts.ComponentTypeFrontend, commonconsts.ComponentTypePlanner, commonconsts.ComponentTypeEPP, "custom", ""}
@@ -7110,23 +7128,6 @@ func TestGenerateComponentContext_WorkerHashSuffix(t *testing.T) {
 	}
 	compCtx3 := generateComponentContext(component3, "dgd", "ns", 1, "kubernetes")
 	assert.Empty(t, compCtx3.WorkerHashSuffix)
-}
-
-func TestGetEffectiveDynamoNamespace(t *testing.T) {
-	assert.Equal(
-		t,
-		"ns-dgd-abc123",
-		GetEffectiveDynamoNamespace(
-			commonconsts.ComponentTypeWorker,
-			"ns-dgd",
-			map[string]string{commonconsts.KubeLabelDynamoWorkerHash: "abc123"},
-		),
-	)
-	assert.Equal(
-		t,
-		"ns-dgd",
-		GetEffectiveDynamoNamespace(commonconsts.ComponentTypeFrontend, "ns-dgd", nil),
-	)
 }
 
 func TestWorkerDefaults_WorkerHashSuffixEnvVar(t *testing.T) {
