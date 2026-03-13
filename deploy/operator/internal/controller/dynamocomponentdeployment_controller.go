@@ -1091,9 +1091,6 @@ func (r *DynamoComponentDeploymentReconciler) generatePodTemplateSpec(ctx contex
 				dynamoNamespace,
 				opt.dynamoComponentDeployment.Spec.Labels,
 			),
-			opt.dynamoComponentDeployment.Spec.ComponentType,
-			opt.dynamoComponentDeployment.Spec.Labels[commonconsts.KubeLabelDynamoGraphDeploymentName],
-			opt.dynamoComponentDeployment.Namespace,
 			string(commonController.GetDiscoveryBackend(r.Config.Discovery.Backend, resourceAnnotations)),
 		)
 	}

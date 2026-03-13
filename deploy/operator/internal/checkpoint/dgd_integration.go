@@ -33,20 +33,19 @@ import (
 
 // getCheckpointInfoFromCheckpoint extracts CheckpointInfo from a DynamoCheckpoint CR
 func getCheckpointInfoFromCheckpoint(ckpt *nvidiacomv1alpha1.DynamoCheckpoint) (*CheckpointInfo, error) {
-	hash, err := ComputeCheckpointName(ckpt.Spec.Identity)
+	hash, err := ComputeIdentityHash(ckpt.Spec.Identity)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute checkpoint name for %s: %w", ckpt.Name, err)
+		return nil, fmt.Errorf("failed to compute checkpoint hash for %s: %w", ckpt.Name, err)
 	}
 	if ckpt.Name != hash {
 		return nil, fmt.Errorf("checkpoint %s must be named %s to match spec.identity", ckpt.Name, hash)
 	}
 
 	info := &CheckpointInfo{
-		Enabled:        true,
-		CheckpointName: ckpt.Name,
-		Hash:           hash,
-		Ready:          ckpt.Status.Phase == nvidiacomv1alpha1.DynamoCheckpointPhaseReady,
-		Identity:       &ckpt.Spec.Identity,
+		Enabled:  true,
+		Hash:     hash,
+		Ready:    ckpt.Status.Phase == nvidiacomv1alpha1.DynamoCheckpointPhaseReady,
+		Identity: &ckpt.Spec.Identity,
 	}
 	if ckpt.Status.Artifact != nil {
 		info.Location = ckpt.Status.Artifact.Location
@@ -87,8 +86,6 @@ type CheckpointInfo struct {
 	Location string
 	// StorageType is the storage backend type (pvc, s3, oci)
 	StorageType nvidiacomv1alpha1.DynamoCheckpointStorageType
-	// CheckpointName is the name of the Checkpoint CR
-	CheckpointName string
 	// Ready indicates if the checkpoint is ready for use
 	Ready bool
 }
@@ -242,9 +239,6 @@ func InjectCheckpointVolumeMount(container *corev1.Container, basePath string) {
 func InjectPodInfoAnnotations(
 	annotations map[string]string,
 	dynamoNamespace string,
-	component string,
-	parentGraphDeploymentName string,
-	parentGraphDeploymentNamespace string,
 	discoveryBackend string,
 ) map[string]string {
 	if annotations == nil {
@@ -252,15 +246,13 @@ func InjectPodInfoAnnotations(
 	}
 
 	annotations[consts.AnnotationDynNamespace] = dynamoNamespace
-	annotations[consts.AnnotationDynComponent] = component
-	annotations[consts.AnnotationDynParentDGDName] = parentGraphDeploymentName
-	annotations[consts.AnnotationDynParentDGDNS] = parentGraphDeploymentNamespace
 	annotations[consts.AnnotationDynDiscoveryBackend] = discoveryBackend
 
 	return annotations
 }
 
-// InjectPodInfoVolume adds a Downward API volume for pod identity and DGD info.
+// InjectPodInfoVolume adds a Downward API volume for pod identity and restore-time
+// discovery fields.
 // This is critical for CRIU checkpoint/restore scenarios where environment variables
 // contain stale values from the checkpoint source pod. The Downward API files
 // always reflect the current pod's identity and DGD configuration.
@@ -296,29 +288,11 @@ func InjectPodInfoVolume(podSpec *corev1.PodSpec) {
 							FieldPath: consts.PodInfoFieldPodNamespace,
 						},
 					},
-					// DGD info from annotations (for CRIU restore)
+					// Restore fields from annotations (for CRIU restore)
 					{
 						Path: consts.PodInfoFileDynNamespace,
 						FieldRef: &corev1.ObjectFieldSelector{
 							FieldPath: "metadata.annotations['" + consts.AnnotationDynNamespace + "']",
-						},
-					},
-					{
-						Path: consts.PodInfoFileDynComponent,
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.annotations['" + consts.AnnotationDynComponent + "']",
-						},
-					},
-					{
-						Path: consts.PodInfoFileDynParentDGDName,
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.annotations['" + consts.AnnotationDynParentDGDName + "']",
-						},
-					},
-					{
-						Path: consts.PodInfoFileDynParentDGDNS,
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.annotations['" + consts.AnnotationDynParentDGDNS + "']",
 						},
 					},
 					{

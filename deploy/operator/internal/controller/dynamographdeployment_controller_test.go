@@ -354,7 +354,7 @@ func TestDynamoGraphDeploymentReconciler_createCheckpointCR_reusesExistingCaptur
 		Model:            "meta-llama/Llama-2-7b-hf",
 		BackendFramework: "vllm",
 	}
-	hash, err := checkpoint.ComputeCheckpointName(identity)
+	hash, err := checkpoint.ComputeIdentityHash(identity)
 	if err != nil {
 		t.Fatalf("Failed to compute checkpoint hash: %v", err)
 	}

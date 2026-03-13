@@ -25,17 +25,11 @@ def test_load_discovery_identity_restoration_reads_current_podinfo(tmp_path):
     (tmp_path / "dyn_discovery_backend").write_text(
         "kubernetes\n", encoding="utf-8"
     )
-    (tmp_path / "dyn_component").write_text("worker\n", encoding="utf-8")
-    (tmp_path / "dyn_parent_dgd_name").write_text("my-dgd\n", encoding="utf-8")
-    (tmp_path / "dyn_parent_dgd_namespace").write_text("my-ns\n", encoding="utf-8")
 
     identity = load_discovery_identity_restoration(tmp_path)
 
     assert identity.namespace == "new-namespace"
     assert identity.discovery_backend == "kubernetes"
-    assert identity.component == "worker"
-    assert identity.parent_dgd_name == "my-dgd"
-    assert identity.parent_dgd_namespace == "my-ns"
 
 
 def test_apply_discovery_identity_restoration_overrides_stale_restore_values(tmp_path):

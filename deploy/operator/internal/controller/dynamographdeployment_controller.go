@@ -1225,26 +1225,16 @@ func (r *DynamoGraphDeploymentReconciler) reconcileCheckpoints(ctx context.Conte
 		// Store checkpoint info for later use in pod spec generation
 		checkpointInfos[serviceName] = info
 
-		// If no checkpoint found and mode is Auto, create one
-		if info.CheckpointName == "" && component.Checkpoint.Mode == nvidiacomv1alpha1.CheckpointModeAuto {
+		// Ensure the canonical checkpoint CR exists for Auto mode.
+		if component.Checkpoint.Mode == nvidiacomv1alpha1.CheckpointModeAuto && info.Identity != nil && !info.Ready {
 			logger.Info("Creating DynamoCheckpoint CR in Auto mode", "service", serviceName)
 
-			ckpt, err := r.createCheckpointCR(ctx, dynamoDeployment, serviceName, component)
+			_, err := r.createCheckpointCR(ctx, dynamoDeployment, serviceName, component)
 			if err != nil {
 				logger.Error(err, "Failed to create DynamoCheckpoint CR", "service", serviceName)
 				return nil, fmt.Errorf("failed to create checkpoint for service %s: %w", serviceName, err)
 			}
-
-			info.CheckpointName = ckpt.Name
-			// Compute hash locally since status may not be populated yet
-			// (checkpoint controller reconciles asynchronously)
-			hash, err := checkpoint.ComputeIdentityHash(*component.Checkpoint.Identity)
-			if err != nil {
-				logger.Error(err, "Failed to compute checkpoint identity hash", "service", serviceName)
-				return nil, fmt.Errorf("failed to compute checkpoint hash for service %s: %w", serviceName, err)
-			}
-			info.Hash = hash
-			info.Ready = false // Newly created checkpoint is not ready yet
+			info.Ready = false
 		}
 	}
 
@@ -1276,7 +1266,7 @@ func (r *DynamoGraphDeploymentReconciler) createCheckpointCR(
 	}
 
 	// Compute hash for naming
-	hash, err := checkpoint.ComputeCheckpointName(checkpointIdentity)
+	hash, err := checkpoint.ComputeIdentityHash(checkpointIdentity)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute identity hash: %w", err)
 	}

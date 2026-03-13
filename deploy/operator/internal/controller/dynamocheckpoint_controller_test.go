@@ -45,10 +45,10 @@ var checkpointTestIdentity = nvidiacomv1alpha1.DynamoCheckpointIdentity{
 	BackendFramework: "vllm",
 }
 
-var testHash = mustCheckpointName(checkpointTestIdentity)
+var testHash = mustIdentityHash(checkpointTestIdentity)
 
-func mustCheckpointName(identity nvidiacomv1alpha1.DynamoCheckpointIdentity) string {
-	hash, err := checkpoint.ComputeCheckpointName(identity)
+func mustIdentityHash(identity nvidiacomv1alpha1.DynamoCheckpointIdentity) string {
+	hash, err := checkpoint.ComputeIdentityHash(identity)
 	if err != nil {
 		panic(err)
 	}

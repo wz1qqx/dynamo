@@ -60,7 +60,7 @@ func testIdentity() nvidiacomv1alpha1.DynamoCheckpointIdentity {
 
 func testIdentityHash(t *testing.T) string {
 	t.Helper()
-	hash, err := ComputeCheckpointName(testIdentity())
+	hash, err := ComputeIdentityHash(testIdentity())
 	require.NoError(t, err)
 	return hash
 }
@@ -143,17 +143,11 @@ func TestInjectPodInfoAnnotations(t *testing.T) {
 	annotations := InjectPodInfoAnnotations(
 		map[string]string{"custom": "value"},
 		"dyn-ns",
-		"worker",
-		"my-dgd",
-		"my-ns",
 		"kubernetes",
 	)
 
 	assert.Equal(t, "value", annotations["custom"])
 	assert.Equal(t, "dyn-ns", annotations[consts.AnnotationDynNamespace])
-	assert.Equal(t, "worker", annotations[consts.AnnotationDynComponent])
-	assert.Equal(t, "my-dgd", annotations[consts.AnnotationDynParentDGDName])
-	assert.Equal(t, "my-ns", annotations[consts.AnnotationDynParentDGDNS])
 	assert.Equal(t, "kubernetes", annotations[consts.AnnotationDynDiscoveryBackend])
 }
 
@@ -439,7 +433,7 @@ func TestResolveCheckpointForService(t *testing.T) {
 
 	t.Run("identity lookup finds existing checkpoint by deterministic name", func(t *testing.T) {
 		identity := testIdentity()
-		hash, err := ComputeCheckpointName(identity)
+		hash, err := ComputeIdentityHash(identity)
 		require.NoError(t, err)
 
 		ckpt := &nvidiacomv1alpha1.DynamoCheckpoint{

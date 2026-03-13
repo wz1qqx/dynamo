@@ -1440,8 +1440,6 @@ func GenerateGrovePodCliqueSet(
 			clique.Labels = labels
 			annotations, err := generateAnnotations(
 				component,
-				dynamoDeployment.Name,
-				dynamoDeployment.Namespace,
 				string(discoveryBackend),
 				checkpointInfo,
 			)
@@ -1537,8 +1535,6 @@ func generateLabels(
 
 func generateAnnotations(
 	component *v1alpha1.DynamoComponentDeploymentSharedSpec,
-	parentGraphDeploymentName string,
-	parentGraphDeploymentNamespace string,
 	discoveryBackend string,
 	checkpointInfo *checkpoint.CheckpointInfo,
 ) (map[string]string, error) {
@@ -1559,9 +1555,6 @@ func generateAnnotations(
 		annotations = checkpoint.InjectPodInfoAnnotations(
 			annotations,
 			GetEffectiveDynamoNamespace(component.ComponentType, *component.DynamoNamespace, component.Labels),
-			component.ComponentType,
-			parentGraphDeploymentName,
-			parentGraphDeploymentNamespace,
 			discoveryBackend,
 		)
 	}

@@ -6872,9 +6872,6 @@ func TestGenerateGrovePodCliqueSet_RestorePodInfoAnnotations(t *testing.T) {
 
 	annotations := got.Spec.Template.Cliques[0].Annotations
 	assert.Equal(t, "default-test-dgd", annotations[commonconsts.AnnotationDynNamespace])
-	assert.Equal(t, commonconsts.ComponentTypeWorker, annotations[commonconsts.AnnotationDynComponent])
-	assert.Equal(t, "test-dgd", annotations[commonconsts.AnnotationDynParentDGDName])
-	assert.Equal(t, "default", annotations[commonconsts.AnnotationDynParentDGDNS])
 	assert.Equal(t, "kubernetes", annotations[commonconsts.AnnotationDynDiscoveryBackend])
 }
 

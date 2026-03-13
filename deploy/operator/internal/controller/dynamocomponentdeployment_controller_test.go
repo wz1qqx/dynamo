@@ -1310,9 +1310,9 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 
 	t.Run("ready checkpoint adds explicit restore labels", func(t *testing.T) {
 		identity := v1alpha1.DynamoCheckpointIdentity{Model: "test-model", BackendFramework: "vllm"}
-		checkpointName, err := checkpoint.ComputeCheckpointName(identity)
+		checkpointName, err := checkpoint.ComputeIdentityHash(identity)
 		if err != nil {
-			t.Fatalf("ComputeCheckpointName failed: %v", err)
+			t.Fatalf("ComputeIdentityHash failed: %v", err)
 		}
 		dcd := makeDCD(checkpointName)
 		ckpt := &v1alpha1.DynamoCheckpoint{
@@ -1345,15 +1345,6 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynNamespace]; got != "default" {
 			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynNamespace, "default", got)
 		}
-		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynComponent]; got != commonconsts.ComponentTypeWorker {
-			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynComponent, commonconsts.ComponentTypeWorker, got)
-		}
-		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynParentDGDName]; got != "test-dgd" {
-			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynParentDGDName, "test-dgd", got)
-		}
-		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynParentDGDNS]; got != "default" {
-			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynParentDGDNS, "default", got)
-		}
 		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynDiscoveryBackend]; got != "kubernetes" {
 			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynDiscoveryBackend, "kubernetes", got)
 		}
@@ -1361,9 +1352,9 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 
 	t.Run("ready checkpoint uses effective worker namespace when worker hash is present", func(t *testing.T) {
 		identity := v1alpha1.DynamoCheckpointIdentity{Model: "test-model", BackendFramework: "vllm"}
-		checkpointName, err := checkpoint.ComputeCheckpointName(identity)
+		checkpointName, err := checkpoint.ComputeIdentityHash(identity)
 		if err != nil {
-			t.Fatalf("ComputeCheckpointName failed: %v", err)
+			t.Fatalf("ComputeIdentityHash failed: %v", err)
 		}
 		dcd := makeDCD(checkpointName)
 		dcd.Spec.Labels[commonconsts.KubeLabelDynamoWorkerHash] = "abc12345"
@@ -1395,9 +1386,9 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 
 	t.Run("non-ready checkpoint clears stale restore labels", func(t *testing.T) {
 		identity := v1alpha1.DynamoCheckpointIdentity{Model: "test-model", BackendFramework: "vllm"}
-		checkpointName, err := checkpoint.ComputeCheckpointName(identity)
+		checkpointName, err := checkpoint.ComputeIdentityHash(identity)
 		if err != nil {
-			t.Fatalf("ComputeCheckpointName failed: %v", err)
+			t.Fatalf("ComputeIdentityHash failed: %v", err)
 		}
 		dcd := makeDCD(checkpointName)
 		ckpt := &v1alpha1.DynamoCheckpoint{
@@ -1502,9 +1493,9 @@ func TestDynamoComponentDeploymentReconciler_generateDeployment_RestoreStrategy(
 
 	t.Run("ready checkpoint forces Recreate strategy", func(t *testing.T) {
 		identity := v1alpha1.DynamoCheckpointIdentity{Model: "test-model", BackendFramework: "vllm"}
-		checkpointName, err := checkpoint.ComputeCheckpointName(identity)
+		checkpointName, err := checkpoint.ComputeIdentityHash(identity)
 		if err != nil {
-			t.Fatalf("ComputeCheckpointName failed: %v", err)
+			t.Fatalf("ComputeIdentityHash failed: %v", err)
 		}
 		dcd := makeDCD(checkpointName)
 		ckpt := &v1alpha1.DynamoCheckpoint{
@@ -1535,9 +1526,9 @@ func TestDynamoComponentDeploymentReconciler_generateDeployment_RestoreStrategy(
 
 	t.Run("non-ready checkpoint keeps RollingUpdate strategy", func(t *testing.T) {
 		identity := v1alpha1.DynamoCheckpointIdentity{Model: "test-model", BackendFramework: "vllm"}
-		checkpointName, err := checkpoint.ComputeCheckpointName(identity)
+		checkpointName, err := checkpoint.ComputeIdentityHash(identity)
 		if err != nil {
-			t.Fatalf("ComputeCheckpointName failed: %v", err)
+			t.Fatalf("ComputeIdentityHash failed: %v", err)
 		}
 		dcd := makeDCD(checkpointName)
 		ckpt := &v1alpha1.DynamoCheckpoint{

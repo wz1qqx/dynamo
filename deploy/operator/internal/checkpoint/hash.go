@@ -69,11 +69,6 @@ func ComputeIdentityHash(identity nvidiacomv1alpha1.DynamoCheckpointIdentity) (s
 	return hex.EncodeToString(hash[:])[:16], nil
 }
 
-// ComputeCheckpointName returns the canonical Kubernetes object name for a checkpoint identity.
-func ComputeCheckpointName(identity nvidiacomv1alpha1.DynamoCheckpointIdentity) (string, error) {
-	return ComputeIdentityHash(identity)
-}
-
 // SameCheckpointIdentity reports whether two identities are equivalent under the
 // same normalization rules used for checkpoint hashing.
 func SameCheckpointIdentity(a, b nvidiacomv1alpha1.DynamoCheckpointIdentity) bool {

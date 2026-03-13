@@ -84,7 +84,7 @@ func (r *CheckpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	logger.Info("Reconciling DynamoCheckpoint", "name", ckpt.Name, "phase", ckpt.Status.Phase)
 
-	expectedName, err := checkpoint.ComputeCheckpointName(ckpt.Spec.Identity)
+	expectedName, err := checkpoint.ComputeIdentityHash(ckpt.Spec.Identity)
 	if err != nil {
 		logger.Error(err, "Failed to compute checkpoint name from spec.identity")
 		return ctrl.Result{}, fmt.Errorf("failed to compute checkpoint name: %w", err)

@@ -19,9 +19,6 @@ _LOG = logging.getLogger(__name__)
 class DiscoveryIdentityRestoration:
     namespace: str
     discovery_backend: str
-    component: str | None = None
-    parent_dgd_name: str | None = None
-    parent_dgd_namespace: str | None = None
 
 
 class CheckpointConfig:
@@ -31,7 +28,6 @@ class CheckpointConfig:
         self.ready_file = ready_file
         self.storage_type = storage_type
         self.location = location
-        self.is_checkpoint_job = bool(location)
         self._checkpoint_done = asyncio.Event()
         self._restore_done = asyncio.Event()
 
@@ -146,17 +142,6 @@ def _read_required_podinfo_file(podinfo_dir: Path, file_name: str) -> str:
     return value
 
 
-def _read_optional_podinfo_file(podinfo_dir: Path, file_name: str) -> str | None:
-    file_path = podinfo_dir / file_name
-    if not file_path.is_file():
-        return None
-
-    value = file_path.read_text(encoding="utf-8").strip()
-    if not value:
-        return None
-    return value
-
-
 def load_discovery_identity_restoration(
     podinfo_dir: str | Path = _DEFAULT_PODINFO_DIR,
 ) -> DiscoveryIdentityRestoration:
@@ -167,13 +152,6 @@ def load_discovery_identity_restoration(
         namespace=_read_required_podinfo_file(podinfo_path, "dyn_namespace"),
         discovery_backend=_read_required_podinfo_file(
             podinfo_path, "dyn_discovery_backend"
-        ),
-        component=_read_optional_podinfo_file(podinfo_path, "dyn_component"),
-        parent_dgd_name=_read_optional_podinfo_file(
-            podinfo_path, "dyn_parent_dgd_name"
-        ),
-        parent_dgd_namespace=_read_optional_podinfo_file(
-            podinfo_path, "dyn_parent_dgd_namespace"
         ),
     )
 
@@ -200,17 +178,14 @@ def apply_discovery_identity_restoration(
 
 
 def get_checkpoint_config() -> tuple[bool, CheckpointConfig | None]:
-    """Resolve checkpoint mode for both checkpoint-job and restore-worker paths."""
+    """Resolve checkpoint mode for checkpoint-job pods."""
 
     cfg = CheckpointConfig.from_env()
     if cfg is None:
         return False, None
 
     checkpoint_exists = cfg.checkpoint_exists()
-    if cfg.is_checkpoint_job and checkpoint_exists:
+    if checkpoint_exists:
         return True, None
-
-    if not cfg.is_checkpoint_job and not checkpoint_exists:
-        return False, None
 
     return False, cfg
