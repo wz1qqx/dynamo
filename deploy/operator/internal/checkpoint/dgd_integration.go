@@ -43,6 +43,7 @@ func getCheckpointInfoFromCheckpoint(ckpt *nvidiacomv1alpha1.DynamoCheckpoint) (
 
 	info := &CheckpointInfo{
 		Enabled:  true,
+		Exists:   true,
 		Hash:     hash,
 		Ready:    ckpt.Status.Phase == nvidiacomv1alpha1.DynamoCheckpointPhaseReady,
 		Identity: &ckpt.Spec.Identity,
@@ -78,6 +79,8 @@ func GetPVCBasePath(config *configv1alpha1.CheckpointConfiguration) string {
 type CheckpointInfo struct {
 	// Enabled indicates if checkpointing is enabled
 	Enabled bool
+	// Exists indicates whether a DynamoCheckpoint CR already exists for this service.
+	Exists bool
 	// Identity is the resolved checkpoint identity (model, framework, etc.)
 	Identity *nvidiacomv1alpha1.DynamoCheckpointIdentity
 	// Hash is the computed identity hash

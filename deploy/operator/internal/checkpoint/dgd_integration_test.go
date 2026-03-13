@@ -381,6 +381,7 @@ func TestResolveCheckpointForService(t *testing.T) {
 			Enabled: true, CheckpointRef: &ref,
 		})
 		require.NoError(t, err)
+		assert.True(t, info.Exists)
 		assert.True(t, info.Ready)
 		assert.Equal(t, hash, info.Hash)
 		assert.Equal(t, "/checkpoints/"+hash, info.Location)
@@ -401,6 +402,7 @@ func TestResolveCheckpointForService(t *testing.T) {
 			Enabled: true, CheckpointRef: &ref,
 		})
 		require.NoError(t, err)
+		assert.True(t, info.Exists)
 		assert.False(t, info.Ready)
 	})
 
@@ -449,7 +451,29 @@ func TestResolveCheckpointForService(t *testing.T) {
 			Enabled: true, Identity: &identity,
 		})
 		require.NoError(t, err)
+		assert.True(t, info.Exists)
 		assert.True(t, info.Ready)
+		assert.Equal(t, hash, info.Hash)
+	})
+
+	t.Run("identity lookup returns existing not-ready checkpoint", func(t *testing.T) {
+		identity := testIdentity()
+		hash, err := ComputeIdentityHash(identity)
+		require.NoError(t, err)
+
+		ckpt := &nvidiacomv1alpha1.DynamoCheckpoint{
+			ObjectMeta: metav1.ObjectMeta{Name: hash, Namespace: testNamespace},
+			Spec:       nvidiacomv1alpha1.DynamoCheckpointSpec{Identity: identity},
+			Status:     nvidiacomv1alpha1.DynamoCheckpointStatus{Phase: nvidiacomv1alpha1.DynamoCheckpointPhaseCreating},
+		}
+		c := fake.NewClientBuilder().WithScheme(s).WithObjects(ckpt).WithStatusSubresource(ckpt).Build()
+
+		info, err := ResolveCheckpointForService(ctx, c, testNamespace, &nvidiacomv1alpha1.ServiceCheckpointConfig{
+			Enabled: true, Identity: &identity,
+		})
+		require.NoError(t, err)
+		assert.True(t, info.Exists)
+		assert.False(t, info.Ready)
 		assert.Equal(t, hash, info.Hash)
 	})
 
@@ -460,6 +484,7 @@ func TestResolveCheckpointForService(t *testing.T) {
 			Enabled: true, Identity: &identity,
 		})
 		require.NoError(t, err)
+		assert.False(t, info.Exists)
 		assert.False(t, info.Ready)
 		assert.Len(t, info.Hash, 16)
 	})

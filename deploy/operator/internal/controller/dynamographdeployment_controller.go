@@ -1226,8 +1226,13 @@ func (r *DynamoGraphDeploymentReconciler) reconcileCheckpoints(ctx context.Conte
 		// Store checkpoint info for later use in pod spec generation
 		checkpointInfos[serviceName] = info
 
-		// Ensure the canonical checkpoint CR exists for Auto mode.
-		if component.Checkpoint.Mode == nvidiacomv1alpha1.CheckpointModeAuto && info.Identity != nil && !info.Ready {
+		// checkpointRef is authoritative. Auto mode should only create the canonical checkpoint
+		// when the service is using identity-based lookup.
+		if component.Checkpoint.Mode == nvidiacomv1alpha1.CheckpointModeAuto &&
+			(component.Checkpoint.CheckpointRef == nil || *component.Checkpoint.CheckpointRef == "") &&
+			!info.Exists &&
+			info.Identity != nil &&
+			!info.Ready {
 			logger.Info("Creating DynamoCheckpoint CR in Auto mode", "service", serviceName)
 
 			_, err := r.createCheckpointCR(ctx, dynamoDeployment, serviceName, component)

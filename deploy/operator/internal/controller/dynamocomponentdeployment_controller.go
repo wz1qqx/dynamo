@@ -1080,13 +1080,9 @@ func (r *DynamoComponentDeploymentReconciler) generatePodTemplateSpec(ctx contex
 		if checkpointInfo.Hash != "" {
 			podLabels[commonconsts.KubeLabelCheckpointHash] = checkpointInfo.Hash
 		}
-		if opt.dynamoComponentDeployment.Spec.DynamoNamespace == nil || *opt.dynamoComponentDeployment.Spec.DynamoNamespace == "" {
-			return nil, fmt.Errorf("restore target %s is missing spec.dynamoNamespace", opt.dynamoComponentDeployment.Name)
-		}
-		dynamoNamespace := *opt.dynamoComponentDeployment.Spec.DynamoNamespace
-		if dynamo.IsWorkerComponent(opt.dynamoComponentDeployment.Spec.ComponentType) &&
-			opt.dynamoComponentDeployment.Spec.Labels[commonconsts.KubeLabelDynamoWorkerHash] != "" {
-			dynamoNamespace += "-" + opt.dynamoComponentDeployment.Spec.Labels[commonconsts.KubeLabelDynamoWorkerHash]
+		dynamoNamespace, err := opt.dynamoComponentDeployment.ResolveEffectiveDynamoNamespace()
+		if err != nil {
+			return nil, err
 		}
 		podAnnotations = checkpoint.InjectPodInfoAnnotations(
 			podAnnotations,
@@ -1144,15 +1140,16 @@ func (r *DynamoComponentDeploymentReconciler) generateService(opt generateResour
 		return deleteStub, true, nil
 	}
 
-	if dcd.Spec.DynamoNamespace == nil {
-		return nil, false, fmt.Errorf("expected DynamoComponentDeployment %s to have a dynamoNamespace", dcd.Name)
+	dynamoNamespace, err := dcd.ResolveDynamoNamespace()
+	if err != nil {
+		return nil, false, err
 	}
 
 	svc, err := dynamo.GenerateComponentService(dynamo.ComponentServiceParams{
 		ServiceName:     dcd.Name,
 		Namespace:       dcd.Namespace,
 		ComponentType:   dcd.Spec.ComponentType,
-		DynamoNamespace: *dcd.Spec.DynamoNamespace,
+		DynamoNamespace: dynamoNamespace,
 		ComponentName:   dcd.Spec.ServiceName,
 		Labels:          r.getKubeLabels(dcd),
 		Annotations:     r.getKubeAnnotations(dcd),

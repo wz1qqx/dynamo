@@ -1259,6 +1259,10 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-worker",
 				Namespace: "default",
+				OwnerReferences: []metav1.OwnerReference{{
+					Kind: "DynamoGraphDeployment",
+					Name: "test-dgd",
+				}},
 			},
 			Spec: v1alpha1.DynamoComponentDeploymentSpec{
 				BackendFramework: string(dynamo.BackendFrameworkVLLM),
@@ -1384,7 +1388,7 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 		}
 	})
 
-	t.Run("restore target requires dynamoNamespace", func(t *testing.T) {
+	t.Run("restore target falls back to parent graph namespace when deprecated field is unset", func(t *testing.T) {
 		identity := v1alpha1.DynamoCheckpointIdentity{Model: "test-model", BackendFramework: "vllm"}
 		checkpointName, err := checkpoint.ComputeIdentityHash(identity)
 		if err != nil {
@@ -1404,13 +1408,16 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 		}
 
 		r := makeReconciler(dcd, ckpt)
-		_, err = r.generatePodTemplateSpec(
+		podTemplateSpec, err := r.generatePodTemplateSpec(
 			context.Background(),
 			generateResourceOption{dynamoComponentDeployment: dcd},
 			dynamo.RoleMain,
 		)
-		if err == nil || err.Error() != "restore target test-worker is missing spec.dynamoNamespace" {
-			t.Fatalf("expected missing dynamoNamespace error, got %v", err)
+		if err != nil {
+			t.Fatalf("generatePodTemplateSpec failed: %v", err)
+		}
+		if got := podTemplateSpec.Annotations[commonconsts.AnnotationDynNamespace]; got != "default-test-dgd" {
+			t.Fatalf("expected %s annotation to be %q, got %q", commonconsts.AnnotationDynNamespace, "default-test-dgd", got)
 		}
 	})
 
@@ -1450,6 +1457,77 @@ func TestDynamoComponentDeploymentReconciler_generatePodTemplateSpec_RestoreLabe
 		}
 		if _, ok := podTemplateSpec.Annotations[commonconsts.AnnotationDynNamespace]; ok {
 			t.Fatalf("did not expect %s annotation when checkpoint is not ready", commonconsts.AnnotationDynNamespace)
+		}
+	})
+}
+
+func TestDynamoComponentDeploymentReconciler_generateService_ResolvesDynamoNamespace(t *testing.T) {
+	s := scheme.Scheme
+	if err := v1alpha1.AddToScheme(s); err != nil {
+		t.Fatalf("Failed to add v1alpha1 to scheme: %v", err)
+	}
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatalf("Failed to add corev1 to scheme: %v", err)
+	}
+
+	makeReconciler := func() *DynamoComponentDeploymentReconciler {
+		return &DynamoComponentDeploymentReconciler{
+			Client: fake.NewClientBuilder().WithScheme(s).Build(),
+			Config: &configv1alpha1.OperatorConfiguration{},
+		}
+	}
+
+	t.Run("service generation falls back to parent graph namespace", func(t *testing.T) {
+		dcd := &v1alpha1.DynamoComponentDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-worker",
+				Namespace: "default",
+				OwnerReferences: []metav1.OwnerReference{{
+					Kind: "DynamoGraphDeployment",
+					Name: "test-dgd",
+				}},
+			},
+			Spec: v1alpha1.DynamoComponentDeploymentSpec{
+				DynamoComponentDeploymentSharedSpec: v1alpha1.DynamoComponentDeploymentSharedSpec{
+					ServiceName:   "worker",
+					ComponentType: commonconsts.ComponentTypeWorker,
+				},
+			},
+		}
+
+		svc, toDelete, err := makeReconciler().generateService(generateResourceOption{
+			dynamoComponentDeployment: dcd,
+		})
+		if err != nil {
+			t.Fatalf("generateService failed: %v", err)
+		}
+		if toDelete {
+			t.Fatalf("expected service to be retained")
+		}
+		if got := svc.Spec.Selector[commonconsts.KubeLabelDynamoNamespace]; got != "default-test-dgd" {
+			t.Fatalf("expected %s selector to be %q, got %q", commonconsts.KubeLabelDynamoNamespace, "default-test-dgd", got)
+		}
+	})
+
+	t.Run("service generation errors without deprecated field or parent graph", func(t *testing.T) {
+		dcd := &v1alpha1.DynamoComponentDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-worker",
+				Namespace: "default",
+			},
+			Spec: v1alpha1.DynamoComponentDeploymentSpec{
+				DynamoComponentDeploymentSharedSpec: v1alpha1.DynamoComponentDeploymentSharedSpec{
+					ServiceName:   "worker",
+					ComponentType: commonconsts.ComponentTypeWorker,
+				},
+			},
+		}
+
+		_, _, err := makeReconciler().generateService(generateResourceOption{
+			dynamoComponentDeployment: dcd,
+		})
+		if err == nil || err.Error() != "DynamoComponentDeployment test-worker is missing both spec.dynamoNamespace and a parent DynamoGraphDeployment ownerRef" {
+			t.Fatalf("expected missing namespace source error, got %v", err)
 		}
 	})
 }

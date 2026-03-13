@@ -86,6 +86,8 @@ func makeCheckpointReconciler(s *runtime.Scheme, objs ...client.Object) *Checkpo
 }
 
 func makeTestCheckpoint(phase nvidiacomv1alpha1.DynamoCheckpointPhase) *nvidiacomv1alpha1.DynamoCheckpoint {
+	runAsUser := int64(1234)
+	fsGroup := int64(4321)
 	return &nvidiacomv1alpha1.DynamoCheckpoint{
 		ObjectMeta: metav1.ObjectMeta{Name: testHash, Namespace: testNamespace},
 		Spec: nvidiacomv1alpha1.DynamoCheckpointSpec{
@@ -93,6 +95,10 @@ func makeTestCheckpoint(phase nvidiacomv1alpha1.DynamoCheckpointPhase) *nvidiaco
 			Capture: nvidiacomv1alpha1.DynamoCheckpointCaptureConfig{
 				PodTemplateSpec: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
+						SecurityContext: &corev1.PodSecurityContext{
+							RunAsUser: &runAsUser,
+							FSGroup:   &fsGroup,
+						},
 						Containers: []corev1.Container{{
 							Name:    "main",
 							Image:   "test-image:latest",
@@ -137,6 +143,10 @@ func TestBuildCheckpointJob(t *testing.T) {
 	require.NotNil(t, podSpec.SecurityContext.SeccompProfile)
 	assert.Equal(t, corev1.SeccompProfileTypeLocalhost, podSpec.SecurityContext.SeccompProfile.Type)
 	assert.Equal(t, consts.SeccompProfilePath, *podSpec.SecurityContext.SeccompProfile.LocalhostProfile)
+	require.NotNil(t, podSpec.SecurityContext.RunAsUser)
+	assert.Equal(t, int64(1234), *podSpec.SecurityContext.RunAsUser)
+	require.NotNil(t, podSpec.SecurityContext.FSGroup)
+	assert.Equal(t, int64(4321), *podSpec.SecurityContext.FSGroup)
 
 	// Probes: readiness set, liveness/startup cleared
 	require.NotNil(t, main.ReadinessProbe)

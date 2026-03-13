@@ -262,6 +262,152 @@ func TestDynamoComponentDeployment_GetParentGraphDeploymentName(t *testing.T) {
 	}
 }
 
+func TestDynamoComponentDeployment_ResolveDynamoNamespace(t *testing.T) {
+	t.Run("prefers deprecated spec field when present", func(t *testing.T) {
+		dcd := &DynamoComponentDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "worker",
+				Namespace: "default",
+				OwnerReferences: []metav1.OwnerReference{{
+					Kind: "DynamoGraphDeployment",
+					Name: "test-dgd",
+				}},
+			},
+			Spec: DynamoComponentDeploymentSpec{
+				DynamoComponentDeploymentSharedSpec: DynamoComponentDeploymentSharedSpec{
+					DynamoNamespace: ptr.To("legacy-namespace"),
+				},
+			},
+		}
+
+		got, err := dcd.ResolveDynamoNamespace()
+		if err != nil {
+			t.Fatalf("ResolveDynamoNamespace failed: %v", err)
+		}
+		if got != "legacy-namespace" {
+			t.Fatalf("expected legacy namespace, got %q", got)
+		}
+	})
+
+	t.Run("computes namespace from owner when deprecated field is unset", func(t *testing.T) {
+		dcd := &DynamoComponentDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "worker",
+				Namespace: "default",
+				OwnerReferences: []metav1.OwnerReference{{
+					Kind: "DynamoGraphDeployment",
+					Name: "test-dgd",
+				}},
+			},
+			Spec: DynamoComponentDeploymentSpec{},
+		}
+
+		got, err := dcd.ResolveDynamoNamespace()
+		if err != nil {
+			t.Fatalf("ResolveDynamoNamespace failed: %v", err)
+		}
+		if got != "default-test-dgd" {
+			t.Fatalf("expected computed namespace, got %q", got)
+		}
+	})
+
+	t.Run("uses global namespace without parent owner", func(t *testing.T) {
+		dcd := &DynamoComponentDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "worker",
+				Namespace: "default",
+			},
+			Spec: DynamoComponentDeploymentSpec{
+				DynamoComponentDeploymentSharedSpec: DynamoComponentDeploymentSharedSpec{
+					GlobalDynamoNamespace: true,
+				},
+			},
+		}
+
+		got, err := dcd.ResolveDynamoNamespace()
+		if err != nil {
+			t.Fatalf("ResolveDynamoNamespace failed: %v", err)
+		}
+		if got != commonconsts.GlobalDynamoNamespace {
+			t.Fatalf("expected global namespace, got %q", got)
+		}
+	})
+
+	t.Run("errors when neither deprecated field nor parent owner is available", func(t *testing.T) {
+		dcd := &DynamoComponentDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "worker",
+				Namespace: "default",
+			},
+		}
+
+		_, err := dcd.ResolveDynamoNamespace()
+		if err == nil || err.Error() != "DynamoComponentDeployment worker is missing both spec.dynamoNamespace and a parent DynamoGraphDeployment ownerRef" {
+			t.Fatalf("expected missing namespace source error, got %v", err)
+		}
+	})
+}
+
+func TestDynamoComponentDeployment_ResolveEffectiveDynamoNamespace(t *testing.T) {
+	t.Run("appends worker hash for worker components", func(t *testing.T) {
+		dcd := &DynamoComponentDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "worker",
+				Namespace: "default",
+				OwnerReferences: []metav1.OwnerReference{{
+					Kind: "DynamoGraphDeployment",
+					Name: "test-dgd",
+				}},
+			},
+			Spec: DynamoComponentDeploymentSpec{
+				DynamoComponentDeploymentSharedSpec: DynamoComponentDeploymentSharedSpec{
+					ComponentType: commonconsts.ComponentTypeWorker,
+					Labels: map[string]string{
+						commonconsts.KubeLabelDynamoWorkerHash: "abc12345",
+					},
+				},
+			},
+		}
+
+		got, err := dcd.ResolveEffectiveDynamoNamespace()
+		if err != nil {
+			t.Fatalf("ResolveEffectiveDynamoNamespace failed: %v", err)
+		}
+		if got != "default-test-dgd-abc12345" {
+			t.Fatalf("expected worker namespace with suffix, got %q", got)
+		}
+	})
+
+	t.Run("does not append worker hash for non-worker components", func(t *testing.T) {
+		dcd := &DynamoComponentDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "frontend",
+				Namespace: "default",
+				OwnerReferences: []metav1.OwnerReference{{
+					Kind: "DynamoGraphDeployment",
+					Name: "test-dgd",
+				}},
+			},
+			Spec: DynamoComponentDeploymentSpec{
+				DynamoComponentDeploymentSharedSpec: DynamoComponentDeploymentSharedSpec{
+					ComponentType: commonconsts.ComponentTypeFrontend,
+					Labels: map[string]string{
+						commonconsts.KubeLabelDynamoWorkerHash: "abc12345",
+					},
+				},
+			},
+		}
+
+		got, err := dcd.ResolveEffectiveDynamoNamespace()
+		if err != nil {
+			t.Fatalf("ResolveEffectiveDynamoNamespace failed: %v", err)
+		}
+		if got != "default-test-dgd" {
+			t.Fatalf("expected computed namespace without suffix, got %q", got)
+		}
+	})
+}
+
 func TestDynamoComponentDeploymentSharedSpec_VolumeMounts(t *testing.T) {
 	tests := []struct {
 		name               string

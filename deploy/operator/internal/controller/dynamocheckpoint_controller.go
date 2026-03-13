@@ -323,11 +323,12 @@ func (r *CheckpointReconciler) buildCheckpointJob(ckpt *nvidiacomv1alpha1.Dynamo
 
 	// Apply seccomp profile to block io_uring syscalls
 	// CRIU doesn't support io_uring memory mappings, so we must block these syscalls
-	podTemplate.Spec.SecurityContext = &corev1.PodSecurityContext{
-		SeccompProfile: &corev1.SeccompProfile{
-			Type:             corev1.SeccompProfileTypeLocalhost,
-			LocalhostProfile: ptr.To(consts.SeccompProfilePath),
-		},
+	if podTemplate.Spec.SecurityContext == nil {
+		podTemplate.Spec.SecurityContext = &corev1.PodSecurityContext{}
+	}
+	podTemplate.Spec.SecurityContext.SeccompProfile = &corev1.SeccompProfile{
+		Type:             corev1.SeccompProfileTypeLocalhost,
+		LocalhostProfile: ptr.To(consts.SeccompProfilePath),
 	}
 
 	// Build the Job
