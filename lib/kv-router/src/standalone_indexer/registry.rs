@@ -521,10 +521,10 @@ impl WorkerRegistry {
     /// Checks both discovery-registered and CLI-registered workers.
     pub fn get_indexer_for_worker(&self, worker_id: WorkerId) -> Option<Indexer> {
         // Check discovery workers first (more common in runtime mode)
-        if let Some(key) = self.discovered_workers.get(&worker_id) {
-            if let Some(ie) = self.indexers.get(key.value()) {
-                return Some(ie.indexer.clone());
-            }
+        if let Some(key) = self.discovered_workers.get(&worker_id)
+            && let Some(ie) = self.indexers.get(key.value())
+        {
+            return Some(ie.indexer.clone());
         }
         // Fall back for legacy --workers mode: only if this worker is actually
         // in the ZMQ-registered workers map, route to the first indexer.
