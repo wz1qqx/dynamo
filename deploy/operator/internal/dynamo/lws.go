@@ -11,8 +11,9 @@ func (d *LWSMultinodeDeployer) GetLeaderHostname(serviceName string) string {
 }
 
 func (d *LWSMultinodeDeployer) GetNodeRank() (string, bool) {
-	// This requires shell expansion for variable substitution
-	return "$(LWS_WORKER_INDEX)", true
+	// Use ${VAR:-default} syntax for proper shell variable expansion
+	// $(VAR) is command substitution which would fail
+	return "${LWS_WORKER_INDEX:-0}", true
 }
 
 func (d *LWSMultinodeDeployer) NeedsDNSWait() bool {

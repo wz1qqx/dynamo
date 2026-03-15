@@ -461,7 +461,7 @@ func TestUpdateVLLMMultinodeArgs(t *testing.T) {
 				commonconsts.KubeAnnotationDynamoOperatorOriginVersion: "1.0.0",
 			},
 			expectedArgs: []string{fmt.Sprintf(
-				"exec python3 -m dynamo.vllm %s 16 --distributed-executor-backend mp --nnodes 2 --master-addr $LWS_LEADER_ADDRESS --master-port %s --node-rank $(LWS_WORKER_INDEX) --headless",
+				"exec python3 -m dynamo.vllm %s 16 --distributed-executor-backend mp --nnodes 2 --master-addr $LWS_LEADER_ADDRESS --master-port %s --node-rank ${LWS_WORKER_INDEX:-0} --headless",
 				tensorParallelSizeFlag, commonconsts.VLLMMpMasterPort)},
 		},
 		{
@@ -615,7 +615,7 @@ func TestVLLMBackend_UpdatePodSpec(t *testing.T) {
 			expectedInitName:        "wait-for-leader-mp",
 			expectedInitImage:       "vllm:v2",
 			expectedInitCommandLen:  3,
-			expectWaitScriptContent: "$LWS_LEADER_ADDRESS",
+			expectWaitScriptContent: `os.environ.get("LWS_LEADER_ADDRESS"`,
 		},
 		{
 			name:          "mp leader does not inject init container",

@@ -90,8 +90,11 @@ func (b *VLLMBackend) UpdatePodSpec(podSpec *corev1.PodSpec, numberOfNodes int32
 	leaderHostname := multinodeDeployer.GetLeaderHostname(serviceName)
 	mainImage := podSpec.Containers[0].Image
 
-	waitScript := fmt.Sprintf(`import socket, time
-host, port = "%s", %s
+	// Use os.environ.get() to read environment variables in Python
+	// Shell variables like $LWS_LEADER_ADDRESS won't be expanded in Python strings
+	waitScript := fmt.Sprintf(`import socket, time, os
+host = os.environ.get("LWS_LEADER_ADDRESS", "%s")
+port = %s
 print(f"Waiting for leader master port at {host}:{port}...", flush=True)
 start = time.monotonic()
 last_status = start
