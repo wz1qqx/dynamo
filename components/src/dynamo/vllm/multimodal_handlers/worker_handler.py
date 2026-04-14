@@ -3,7 +3,7 @@
 
 import logging
 
-from vllm.inputs.data import TokensPrompt
+from vllm.inputs import TokensPrompt
 
 import dynamo.nixl_connect as connect
 from dynamo.runtime import DistributedRuntime

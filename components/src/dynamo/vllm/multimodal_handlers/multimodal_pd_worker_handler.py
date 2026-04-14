@@ -8,7 +8,7 @@ from collections import defaultdict
 from typing import Any
 
 import torch
-from vllm.inputs.data import TokensPrompt
+from vllm.inputs import TokensPrompt
 from vllm.v1.engine.async_llm import AsyncLLM
 
 import dynamo.nixl_connect as connect
