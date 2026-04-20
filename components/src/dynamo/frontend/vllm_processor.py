@@ -213,6 +213,7 @@ def _preprocess_worker(
         request_id,
         prompt_inputs,
         sampling_params,
+        ("generate",),
     )
     InputProcessor.assign_request_id(vllm_preproc)
 
@@ -454,6 +455,7 @@ class VllmProcessor:
             request_id,
             prompt_inputs,
             sampling_params,
+            ("generate",),
             # arrival_time: float | None = None,
             # lora_request: LoRARequest | None = None,
             # tokenization_kwargs: dict[str, Any] | None = None,
