@@ -111,6 +111,7 @@ def _init_worker(
     config_format: str,
     load_format: str,
     tool_parser_name: str | None,
+    trust_remote_code: bool = False,
 ) -> None:
     """Initialize a worker process with its own VllmConfig and InputProcessor."""
     global _w_input_processor, _w_tokenizer, _w_tool_parser_class
@@ -120,6 +121,7 @@ def _init_worker(
         model=model_path,
         tokenizer_mode=tokenizer_mode,
         config_format=config_format,
+        trust_remote_code=trust_remote_code,
     )
     vllm_config = VllmConfig(
         model_config=model_config,
@@ -780,10 +782,12 @@ class EngineFactory:
         config_format = getattr(self.flags, "config_format", None) or "auto"
         load_format = getattr(self.flags, "load_format", None) or "dummy"
 
+        trust_remote_code = getattr(self.flags, "trust_remote_code", False)
         model_config = ModelConfig(
             model=source_path,
             tokenizer_mode=tokenizer_mode,
             config_format=config_format,
+            trust_remote_code=trust_remote_code,
         )
         vllm_config = VllmConfig(
             model_config=model_config,
@@ -852,6 +856,7 @@ class EngineFactory:
                     config_format,
                     load_format,
                     tool_parser_name,
+                    trust_remote_code,
                 ),
             )
             # Warm up all workers to ensure initialization completes
