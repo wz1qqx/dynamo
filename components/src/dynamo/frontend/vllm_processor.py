@@ -224,6 +224,31 @@ def _preprocess_worker(
             }
         )
 
+    worker_sampling_options: dict[str, Any] = {
+        "n": sp.n,
+        "presence_penalty": sp.presence_penalty,
+        "frequency_penalty": sp.frequency_penalty,
+        "repetition_penalty": sp.repetition_penalty,
+        "temperature": sp.temperature,
+        "top_p": sp.top_p,
+        "top_k": sp.top_k,
+        "min_p": sp.min_p,
+        "seed": sp.seed,
+    }
+    so = getattr(sp, "structured_outputs", None) or getattr(
+        request_for_sampling, "structured_outputs", None
+    )
+    if so is not None:
+        gd = {k: v for k, v in {
+            "structural_tag": getattr(so, "structural_tag", None),
+            "json": getattr(so, "json", None),
+            "regex": getattr(so, "regex", None),
+            "grammar": getattr(so, "grammar", None),
+            "json_object": getattr(so, "json_object", None),
+        }.items() if v is not None}
+        if gd:
+            worker_sampling_options["guided_decoding"] = gd
+
     dynamo_preproc = {
         "model": model_name,
         "token_ids": tokens,
@@ -234,17 +259,7 @@ def _preprocess_worker(
             "min_tokens": sp.min_tokens,
             "ignore_eos": sp.ignore_eos,
         },
-        "sampling_options": {
-            "n": sp.n,
-            "presence_penalty": sp.presence_penalty,
-            "frequency_penalty": sp.frequency_penalty,
-            "repetition_penalty": sp.repetition_penalty,
-            "temperature": sp.temperature,
-            "top_p": sp.top_p,
-            "top_k": sp.top_k,
-            "min_p": sp.min_p,
-            "seed": sp.seed,
-        },
+        "sampling_options": worker_sampling_options,
         "output_options": {
             "logprobs": sp.logprobs,
             "prompt_logprobs": sp.prompt_logprobs,
@@ -463,6 +478,31 @@ class VllmProcessor:
             }
             return
 
+        sampling_options: dict[str, Any] = {
+            "n": sp.n,
+            "presence_penalty": sp.presence_penalty,
+            "frequency_penalty": sp.frequency_penalty,
+            "repetition_penalty": sp.repetition_penalty,
+            "temperature": sp.temperature,
+            "top_p": sp.top_p,
+            "top_k": sp.top_k,
+            "min_p": sp.min_p,
+            "seed": sp.seed,
+        }
+        so = getattr(sp, "structured_outputs", None) or getattr(
+            request_for_sampling, "structured_outputs", None
+        )
+        if so is not None:
+            gd = {k: v for k, v in {
+                "structural_tag": getattr(so, "structural_tag", None),
+                "json": getattr(so, "json", None),
+                "regex": getattr(so, "regex", None),
+                "grammar": getattr(so, "grammar", None),
+                "json_object": getattr(so, "json_object", None),
+            }.items() if v is not None}
+            if gd:
+                sampling_options["guided_decoding"] = gd
+
         dynamo_preproc = {
             "model": request["model"],
             "token_ids": tokens,
@@ -473,17 +513,7 @@ class VllmProcessor:
                 "min_tokens": sp.min_tokens,
                 "ignore_eos": sp.ignore_eos,
             },
-            "sampling_options": {
-                "n": sp.n,
-                "presence_penalty": sp.presence_penalty,
-                "frequency_penalty": sp.frequency_penalty,
-                "repetition_penalty": sp.repetition_penalty,
-                "temperature": sp.temperature,
-                "top_p": sp.top_p,
-                "top_k": sp.top_k,
-                "min_p": sp.min_p,
-                "seed": sp.seed,
-            },
+            "sampling_options": sampling_options,
             "output_options": {
                 "logprobs": sp.logprobs,
                 "prompt_logprobs": sp.prompt_logprobs,

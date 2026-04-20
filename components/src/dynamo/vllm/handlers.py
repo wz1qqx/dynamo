@@ -134,6 +134,8 @@ def build_sampling_params(
             choice=guided_decoding.get("choice"),
             grammar=guided_decoding.get("grammar"),
             whitespace_pattern=guided_decoding.get("whitespace_pattern"),
+            json_object=guided_decoding.get("json_object"),
+            structural_tag=guided_decoding.get("structural_tag"),
         )
 
     # Apply remaining sampling_options
