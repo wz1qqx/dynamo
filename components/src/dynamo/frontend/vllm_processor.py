@@ -173,7 +173,10 @@ def _preprocess_worker(
     )
     for k, v in _w_input_processor.generation_config_fields.items():
         if hasattr(sampling_params, k):
-            setattr(sampling_params, k, v)
+            try:
+                setattr(sampling_params, k, v)
+            except AttributeError:
+                pass  # skip read-only properties (e.g. eos_token_id)
 
     sampling_fields = (
         set(getattr(SamplingParams, "__annotations__", ()))
@@ -182,7 +185,10 @@ def _preprocess_worker(
     for k in sorted(sampling_fields):
         v = getattr(request_for_sampling, k, None)
         if v is not None:
-            setattr(sampling_params, k, v)
+            try:
+                setattr(sampling_params, k, v)
+            except AttributeError:
+                pass  # skip read-only properties
 
     logprobs = request_for_sampling.logprobs
     top_logprobs = request_for_sampling.top_logprobs
@@ -397,7 +403,10 @@ class VllmProcessor:
         # generation_config.json
         for k, v in self.input_processor.generation_config_fields.items():
             if hasattr(sampling_params, k):
-                setattr(sampling_params, k, v)
+                try:
+                    setattr(sampling_params, k, v)
+                except AttributeError:
+                    pass  # skip read-only properties (e.g. eos_token_id)
 
         # User request: copy fields supported by both request schema and
         # SamplingParams, excluding fields handled separately below.
@@ -408,7 +417,10 @@ class VllmProcessor:
         for k in sorted(sampling_fields):
             v = getattr(request_for_sampling, k, None)
             if v is not None:
-                setattr(sampling_params, k, v)
+                try:
+                    setattr(sampling_params, k, v)
+                except AttributeError:
+                    pass  # skip read-only properties
         logprobs = request_for_sampling.logprobs
         top_logprobs = request_for_sampling.top_logprobs
         if logprobs is True:
