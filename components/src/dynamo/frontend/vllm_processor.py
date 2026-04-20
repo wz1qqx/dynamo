@@ -274,8 +274,8 @@ def _preprocess_worker(
             "prompt_logprobs": sp.prompt_logprobs,
             "skip_special_tokens": sp.skip_special_tokens,
         },
-        "eos_token_ids": [vllm_preproc.eos_token_id]
-        if vllm_preproc.eos_token_id is not None
+        "eos_token_ids": [_eos]
+        if (_eos := _w_input_processor.renderer.get_eos_token_id()) is not None
         else [],
         "annotations": [],
     }
@@ -535,8 +535,8 @@ class VllmProcessor:
                 "prompt_logprobs": sp.prompt_logprobs,
                 "skip_special_tokens": sp.skip_special_tokens,
             },
-            "eos_token_ids": [vllm_preproc.eos_token_id]
-            if vllm_preproc.eos_token_id is not None
+            "eos_token_ids": [_eos]
+            if (_eos := self.input_processor.renderer.get_eos_token_id()) is not None
             else [],
             "annotations": [],
         }
