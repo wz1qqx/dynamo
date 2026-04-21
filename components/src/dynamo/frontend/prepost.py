@@ -265,6 +265,10 @@ class StreamingPostProcessor:
         # this correctly, so we accumulate text here and fall back to the
         # non-streaming extract_tool_calls() once the buffer is complete.
         self._tool_text_buffer: str | None = None
+        # True once we have emitted at least one tool_calls chunk, so that a
+        # subsequent finish chunk (finish_reason="stop" from EngineCore) can
+        # be overridden to "tool_calls" — matching pure vLLM serving_chat.py.
+        self._tool_calls_emitted: bool = False
 
     @staticmethod
     def _merge_tool_call(
@@ -375,24 +379,33 @@ class StreamingPostProcessor:
         ]
 
     def _emit_tool_calls_choice(self, output: Any) -> dict[str, Any]:
+        # finish_reason from EngineCore is always "stop"/"length" — never
+        # "tool_calls".  Override unconditionally, matching pure vLLM
+        # serving_chat.py which explicitly sets finish_reason_="tool_calls"
+        # when auto_tools_called or tools_streamed is True.
+        self._tool_calls_emitted = True
         choice = {
             "index": output.index,
             "delta": {
                 "role": "assistant",
                 "tool_calls": self._dump_in_progress_tool_calls(),
             },
-            "finish_reason": output.finish_reason,
+            "finish_reason": "tool_calls",
             "logprobs": output.logprobs,
         }
         self.in_progress_tool_calls.clear()
         return choice
 
     @staticmethod
-    def _build_choice(output: Any, delta: dict[str, Any]) -> dict[str, Any]:
+    def _build_choice(
+        output: Any,
+        delta: dict[str, Any],
+        finish_reason: str | None = None,
+    ) -> dict[str, Any]:
         return {
             "index": output.index,
             "delta": delta,
-            "finish_reason": output.finish_reason,
+            "finish_reason": finish_reason if finish_reason is not None else output.finish_reason,
             "logprobs": output.logprobs,
         }
 
@@ -533,7 +546,13 @@ class StreamingPostProcessor:
             if self.in_progress_tool_calls:
                 choice = self._emit_tool_calls_choice(output)
             elif output.finish_reason:
-                choice = self._build_choice(output, {})
+                # If tool_calls were emitted in a prior chunk, the EngineCore
+                # sends a trailing finish chunk with finish_reason="stop".
+                # Override to "tool_calls" to match vLLM serving_chat.py.
+                finish_reason = (
+                    "tool_calls" if self._tool_calls_emitted else output.finish_reason
+                )
+                choice = self._build_choice(output, {}, finish_reason)
         elif delta_message.tool_calls:
             self._merge_streaming_tool_calls(delta_message.tool_calls)
             if output.finish_reason and self.in_progress_tool_calls:
@@ -553,12 +572,21 @@ class StreamingPostProcessor:
             if self.in_progress_tool_calls:
                 delta["tool_calls"] = self._dump_in_progress_tool_calls()
                 self.in_progress_tool_calls.clear()
+                self._tool_calls_emitted = True
             if len(delta) > 1:
-                choice = self._build_choice(output, delta)
+                finish_reason = (
+                    "tool_calls"
+                    if "tool_calls" in delta and output.finish_reason
+                    else output.finish_reason
+                )
+                choice = self._build_choice(output, delta, finish_reason)
         elif self.in_progress_tool_calls:
             choice = self._emit_tool_calls_choice(output)
         elif output.finish_reason:
-            choice = self._build_choice(output, {})
+            finish_reason = (
+                "tool_calls" if self._tool_calls_emitted else output.finish_reason
+            )
+            choice = self._build_choice(output, {}, finish_reason)
 
         self.previous_text = current_text
         self.previous_token_ids = current_token_ids
