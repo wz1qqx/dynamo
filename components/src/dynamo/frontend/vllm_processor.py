@@ -44,6 +44,7 @@ from .prepost import (
     preprocess_chat_request,
     preprocess_chat_request_sync,
 )
+from .utils import extract_mm_urls
 
 logger = logging.getLogger(__name__)
 
@@ -299,6 +300,7 @@ class VllmProcessor:
         output_processor: OutputProcessor,
         tool_parser_class: type[ToolParser] | None,
         reasoning_parser_class: type[ReasoningParser] | None,
+        enable_auto_tool_choice: bool = False,
         debug_perf: bool = False,
         preprocess_pool: ProcessPoolExecutor | None = None,
         preprocess_workers: int = 0,
@@ -310,6 +312,7 @@ class VllmProcessor:
         self.output_processor = output_processor
         self.tool_parser_class = tool_parser_class
         self.reasoning_parser_class = reasoning_parser_class
+        self.enable_auto_tool_choice = enable_auto_tool_choice
         self.debug_perf = debug_perf
         self.preprocess_pool = preprocess_pool
         if preprocess_pool is not None:
@@ -373,6 +376,7 @@ class VllmProcessor:
             tokenizer=self.tokenizer,
             renderer=self.input_processor.renderer,
             tool_parser_class=self.tool_parser_class,
+            enable_auto_tool_choice=self.enable_auto_tool_choice,
         )
 
         if self.debug_perf:
@@ -541,6 +545,15 @@ class VllmProcessor:
             "annotations": [],
         }
 
+        # Forward multimodal URLs (image_url/audio_url/video_url) to backend (#7837)
+        mm_data = extract_mm_urls(request.get("messages") or [])
+        if mm_data:
+            dynamo_preproc["multi_modal_data"] = mm_data
+
+        # Forward mm_processor_kwargs (e.g. use_audio_in_video) to backend (#8150)
+        if request_for_sampling.mm_processor_kwargs is not None:
+            dynamo_preproc["mm_processor_kwargs"] = request_for_sampling.mm_processor_kwargs
+
         post = StreamingPostProcessor(
             tokenizer=self.tokenizer,
             request_for_sampling=request_for_sampling,
@@ -579,12 +592,18 @@ class VllmProcessor:
 
         try:
             if self.is_kv_router:
+                extra_args: dict[str, Any] = {}
+                mm_proc_kwargs = dynamo_preproc.get("mm_processor_kwargs")
+                if mm_proc_kwargs is not None:
+                    extra_args["mm_processor_kwargs"] = mm_proc_kwargs
                 dynamo_stream = await self.router.generate(
                     token_ids=tokens,
                     model=dynamo_preproc["model"],
                     stop_conditions=dynamo_preproc["stop_conditions"],
                     sampling_options=dynamo_preproc["sampling_options"],
                     output_options=dynamo_preproc["output_options"],
+                    multi_modal_data=dynamo_preproc.get("multi_modal_data"),
+                    extra_args=extra_args or None,
                 )
             else:
                 dynamo_stream = await self.router.generate(
@@ -812,12 +831,33 @@ class EngineFactory:
 
         input_processor = InputProcessor(vllm_config)
         tokenizer = input_processor.get_tokenizer()
+
+        # Resolve stream_interval: env var override > backend runtime_config > default (20)
+        # (#8101) dynamo.vllm propagates --stream-interval via runtime_config["stream_interval"]
+        stream_interval = self.stream_interval
+        if not os.getenv("DYN_VLLM_STREAM_INTERVAL"):
+            backend_interval = (
+                mdc.runtime_config().get("runtime_data", {}).get("stream_interval")
+            )
+            if backend_interval is not None:
+                try:
+                    stream_interval = max(1, int(backend_interval))
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "Invalid stream_interval=%r from backend runtime_config, "
+                        "using default=%d",
+                        backend_interval,
+                        stream_interval,
+                    )
+
         output_processor = OutputProcessor(
             tokenizer,
             log_stats=False,
-            stream_interval=self.stream_interval,
+            stream_interval=stream_interval,
         )
-        logger.info("vLLM OutputProcessor stream_interval=%d", self.stream_interval)
+        logger.info("vLLM OutputProcessor stream_interval=%d", stream_interval)
+
+        enable_auto_tool_choice = getattr(self.flags, "enable_auto_tool_choice", False)
 
         tool_parser_name = self.flags.tool_call_parser or mdc.runtime_config().get(
             "tool_call_parser"
@@ -901,6 +941,7 @@ class EngineFactory:
             output_processor,
             tool_parser_class,
             reasoning_parser_class,
+            enable_auto_tool_choice=enable_auto_tool_choice,
             debug_perf=self.debug_perf,
             preprocess_pool=preprocess_pool,
             preprocess_workers=preprocess_workers,

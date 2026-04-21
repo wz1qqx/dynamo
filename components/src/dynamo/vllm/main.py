@@ -555,6 +555,13 @@ async def register_vllm_model(
         runtime_config.tool_call_parser = config.dyn_tool_call_parser
         runtime_config.reasoning_parser = config.dyn_reasoning_parser
 
+    # Propagate stream_interval so the frontend can respect --stream-interval. (#8101)
+    # set_engine_specific requires a JSON-encoded string (the Rust binding
+    # parses it with serde_json::from_str); str(int) happens to be valid JSON.
+    stream_interval = getattr(config.engine_args, "stream_interval", None)
+    if stream_interval is not None:
+        runtime_config.set_engine_specific("stream_interval", str(stream_interval))
+
     # Get data_parallel_size from vllm_config (defaults to 1)
     dp_range = get_dp_range_for_worker(vllm_config)
     runtime_config.data_parallel_start_rank = dp_range[0]
