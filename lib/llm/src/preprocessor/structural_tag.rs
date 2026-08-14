@@ -14,12 +14,13 @@ fn is_kimi_k3_parser(parser_name: Option<&str>) -> bool {
 }
 
 fn requires_intrinsic_structural_tag(parser_name: Option<&str>, tool_choice: &ToolChoice) -> bool {
-    // Named K3 calls cannot use Dynamo's generic JSON-schema fallback because
+    // Forced K3 calls cannot use Dynamo's generic JSON-schema fallback because
     // K3 emits an XTML tools channel. Treat the K3 structural tag as part of
     // implementing this standard OpenAI request shape, not as an operator
     // opt-in. The global flag still controls optional structural enforcement
-    // for auto/required and every other model family.
-    is_kimi_k3_parser(parser_name) && matches!(tool_choice, ToolChoice::Named(_))
+    // for auto and every other model family.
+    is_kimi_k3_parser(parser_name)
+        && matches!(tool_choice, ToolChoice::Named(_) | ToolChoice::Required)
 }
 
 fn should_skip_tool_call_ban(exclude_tools_when_none: bool, tool_choice: &ToolChoice) -> bool {
@@ -231,11 +232,15 @@ mod tests {
     }
 
     #[test]
-    fn other_choices_and_parsers_still_follow_the_global_mode() {
-        assert!(!requires_intrinsic_structural_tag(
+    fn required_kimi_k3_is_intrinsic_even_when_global_mode_is_off() {
+        assert!(requires_intrinsic_structural_tag(
             Some("kimi_k3"),
             &ToolChoice::Required
         ));
+    }
+
+    #[test]
+    fn other_choices_and_parsers_still_follow_the_global_mode() {
         assert!(!requires_intrinsic_structural_tag(
             Some("hermes"),
             &ToolChoice::Named("get_weather".to_string())

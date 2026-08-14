@@ -37,7 +37,12 @@ impl OpenAIPreprocessor {
             .tool_choice
             .as_ref()
             .unwrap_or(&ChatCompletionToolChoiceOption::Auto);
-        let tools = request.inner.tools.as_deref().unwrap_or(&[]);
+        let effective_tools = crate::protocols::openai::validate::validate_request_tools(
+            request.inner.tools.as_deref(),
+            &request.inner.messages,
+        )
+        .map_err(|err| invalid_argument(err.to_string()))?;
+        let tools = effective_tools.as_slice();
         let is_forced_tool_choice = matches!(
             tool_choice,
             ChatCompletionToolChoiceOption::Required | ChatCompletionToolChoiceOption::Named(_)
