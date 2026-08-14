@@ -135,3 +135,11 @@ tracing-subscriber = { version = "0.3", features = ["registry"] }
 inherits = "release"
 debug = true
 strip = false
+
+[patch.crates-io]
+# This extension crate deliberately forms its own workspace. Duplicate the
+# candidate protocol/renderer override here; the top-level patch is ignored
+# when maturin resolves this manifest.
+dynamo-protocols = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "38cf818b17bbb0ef6e81e6fdee42650c297444bc" }
+dynamo-renderer = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "38cf818b17bbb0ef6e81e6fdee42650c297444bc" }
+dynamo-tokenizers = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "38cf818b17bbb0ef6e81e6fdee42650c297444bc" }
