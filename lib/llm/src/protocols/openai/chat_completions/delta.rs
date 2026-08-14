@@ -84,10 +84,17 @@ impl DeltaGenerator {
 
     /// Updates the prompt token usage count.
     ///
-    /// # Arguments
-    /// * `isl` - Input Sequence Length. The number of prompt tokens used.
+    /// K3's public API reports prompt usage without the final assistant
+    /// generation channel marker (`<|open|>think<|sep|>` or
+    /// `<|open|>response<|sep|>`), while the backend-visible prompt includes
+    /// that three-token marker.
     pub fn update_isl(&mut self, isl: u32) {
-        self.usage.prompt_tokens = isl;
+        let generation_channel_tokens = if self.model.to_ascii_lowercase().contains("kimi-k3") {
+            3
+        } else {
+            0
+        };
+        self.usage.prompt_tokens = isl.saturating_sub(generation_channel_tokens);
     }
 
     pub fn create_logprobs(
@@ -262,7 +269,14 @@ impl crate::protocols::openai::DeltaGeneratorExt<NvCreateChatCompletionStreamRes
         // the embedding sequence length computed by the worker
         if let Some(completion_usage) = delta.completion_usage.as_ref() {
             // Update prompt_tokens from worker if provided (e.g., for embeddings)
-            self.usage.prompt_tokens = completion_usage.prompt_tokens;
+            let generation_channel_tokens = if self.model.to_ascii_lowercase().contains("kimi-k3") {
+                3
+            } else {
+                0
+            };
+            self.usage.prompt_tokens = completion_usage
+                .prompt_tokens
+                .saturating_sub(generation_channel_tokens);
 
             // Propagate prompt token details if provided
             if let Some(prompt_details) = completion_usage.prompt_tokens_details.as_ref() {
@@ -380,6 +394,25 @@ impl crate::protocols::openai::DeltaGeneratorExt<NvCreateChatCompletionStreamRes
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn kimi_k3_usage_excludes_generation_channel_marker() {
+        let mut generator = super::DeltaGenerator::new(
+            "moonshotai/Kimi-K3".to_string(),
+            crate::protocols::openai::delta_common::DeltaGeneratorOptions::default(),
+            "req-k3-usage".to_string(),
+        );
+
+        generator.update_isl(39);
+        assert_eq!(generator.get_usage().prompt_tokens, 36);
+
+        let mut generic = super::DeltaGenerator::new(
+            "other-model".to_string(),
+            crate::protocols::openai::delta_common::DeltaGeneratorOptions::default(),
+            "req-generic-usage".to_string(),
+        );
+        generic.update_isl(39);
+        assert_eq!(generic.get_usage().prompt_tokens, 39);
+    }
     use super::*;
     use crate::protocols::common::{self, llm_backend::BackendOutput, timing::WORKER_TYPE_PREFILL};
     use crate::protocols::openai::DeltaGeneratorExt;

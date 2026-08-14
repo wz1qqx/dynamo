@@ -148,6 +148,22 @@ impl NvCreateChatCompletionRequest {
         }
 
         let args = self.chat_template_args.get_or_insert_with(HashMap::new);
+        let thinking_object = self.thinking.as_ref().and_then(|value| value.as_object());
+        if let Some(effort) = thinking_object
+            .and_then(|object| object.get("effort"))
+            .and_then(|value| value.as_str())
+        {
+            if matches!(thinking_mode, Some(OpenAiThinkingMode::Disabled)) {
+                // K3 documents effort as irrelevant in disabled mode.
+            } else if matches!(effort, "low" | "high" | "max") {
+                args.insert(
+                    "thinking_effort".to_string(),
+                    serde_json::Value::String(effort.to_string()),
+                );
+            } else {
+                anyhow::bail!("`thinking.effort` must be `low`, `high`, or `max`");
+            }
+        }
         if let Some(mode) = thinking_mode {
             match mode {
                 OpenAiThinkingMode::Enabled => {
@@ -212,7 +228,9 @@ fn openai_thinking_mode(value: &serde_json::Value) -> anyhow::Result<Option<Open
         );
     };
     let Some(thinking_type) = thinking_object.get("type").and_then(|v| v.as_str()) else {
-        anyhow::bail!("`thinking.type` must be `enabled`, `disabled`, or `adaptive`");
+        // K3's OpenAI extension defaults to enabled when additional options
+        // such as keep/effort are present without an explicit type.
+        return Ok(Some(OpenAiThinkingMode::Enabled));
     };
     match thinking_type {
         "enabled" => Ok(Some(OpenAiThinkingMode::Enabled)),
@@ -1014,6 +1032,40 @@ mod tests {
                 serde_json::from_value(request_json).expect("raw duplicate tools must parse");
             assert!(ValidateRequest::validate(&request).is_err());
         }
+    }
+
+    #[test]
+    fn test_thinking_defaults_and_effort_normalization() {
+        let mut request: NvCreateChatCompletionRequest = serde_json::from_value(json!({
+            "model": "moonshotai/Kimi-K3",
+            "messages": [{"role": "user", "content": "reason"}],
+            "thinking": {"keep": "all", "effort": "low"},
+            "reasoning_effort": "max"
+        }))
+        .unwrap();
+
+        request.normalize_reasoning_template_args().unwrap();
+        let args = request.chat_template_args.as_ref().unwrap();
+
+        assert_eq!(args["thinking"], json!(true));
+        assert_eq!(args["thinking_effort"], json!("low"));
+        assert_eq!(args["reasoning_effort"], json!("max"));
+    }
+
+    #[test]
+    fn test_k3_response_format_requires_object_schema() {
+        let request: NvCreateChatCompletionRequest = serde_json::from_value(json!({
+            "model": "moonshotai/Kimi-K3",
+            "messages": [{"role": "user", "content": "hello"}],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": "weather", "schema": "x"}
+            }
+        }))
+        .unwrap();
+
+        let err = ValidateRequest::validate(&request).expect_err("schema must be an object");
+        assert!(err.to_string().contains("schema` must be a JSON object"));
     }
 
     #[test]

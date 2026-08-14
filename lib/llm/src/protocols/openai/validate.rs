@@ -198,6 +198,9 @@ pub fn validate_response_format(
                     "`response_format.json_schema.schema` is required when `response_format.type` is `json_schema`"
                 );
             }
+            if !json_schema.schema.is_object() {
+                anyhow::bail!("`response_format.json_schema.schema` must be a JSON object");
+            }
             Ok(())
         }
     }
