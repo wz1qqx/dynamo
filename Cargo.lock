@@ -2855,8 +2855,7 @@ dependencies = [
 [[package]]
 name = "dynamo-protocols"
 version = "5.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fd951c32c033f4f220b6087db91d7f7d475f1bf1f886c8e60798ac1cf4cc9a"
+source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=38cf818b17bbb0ef6e81e6fdee42650c297444bc#38cf818b17bbb0ef6e81e6fdee42650c297444bc"
 dependencies = [
  "async-openai",
  "derive_builder",
@@ -2872,8 +2871,7 @@ dependencies = [
 [[package]]
 name = "dynamo-renderer"
 version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0423da7bec83734e7567b1c8895fd2e7a1a98256253a29fe128032ac01cefac1"
+source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=38cf818b17bbb0ef6e81e6fdee42650c297444bc#38cf818b17bbb0ef6e81e6fdee42650c297444bc"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3038,8 +3036,7 @@ dependencies = [
 [[package]]
 name = "dynamo-tokenizers"
 version = "1.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "821c767e896f1f225b6411a5ce41dba7f114c2c97db862a13fd962195665075e"
+source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=38cf818b17bbb0ef6e81e6fdee42650c297444bc#38cf818b17bbb0ef6e81e6fdee42650c297444bc"
 dependencies = [
  "aho-corasick",
  "anyhow",

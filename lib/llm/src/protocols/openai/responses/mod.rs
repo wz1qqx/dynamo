@@ -499,10 +499,11 @@ fn convert_input_items_to_messages(
                                 let text = convert_input_content_to_text(&msg.content);
                                 ChatCompletionRequestMessage::System(
                                     ChatCompletionRequestSystemMessage {
-                                        content: ChatCompletionRequestSystemMessageContent::Text(
-                                            text,
+                                        content: Some(
+                                            ChatCompletionRequestSystemMessageContent::Text(text),
                                         ),
                                         name: None,
+                                        tools: None,
                                     },
                                 )
                             }
@@ -603,8 +604,11 @@ fn convert_input_items_to_messages(
                         std::mem::take(&mut pending).flush_into(&mut messages);
                         messages.push(ChatCompletionRequestMessage::System(
                             ChatCompletionRequestSystemMessage {
-                                content: ChatCompletionRequestSystemMessageContent::Text(text),
+                                content: Some(ChatCompletionRequestSystemMessageContent::Text(
+                                    text,
+                                )),
                                 name: None,
+                                tools: None,
                             },
                         ));
                     }
@@ -736,8 +740,11 @@ impl TryFrom<NvCreateResponse> for NvCreateChatCompletionRequest {
         if let Some(instructions) = &resp.inner.instructions {
             messages.push(ChatCompletionRequestMessage::System(
                 ChatCompletionRequestSystemMessage {
-                    content: ChatCompletionRequestSystemMessageContent::Text(instructions.clone()),
+                    content: Some(ChatCompletionRequestSystemMessageContent::Text(
+                        instructions.clone(),
+                    )),
                     name: None,
+                    tools: None,
                 },
             ));
         }
@@ -774,8 +781,9 @@ impl TryFrom<NvCreateResponse> for NvCreateChatCompletionRequest {
                 let combined: String = messages[..leading_system_count]
                     .iter()
                     .map(|m| match m {
-                        ChatCompletionRequestMessage::System(s) => match &s.content {
-                            ChatCompletionRequestSystemMessageContent::Text(t) => t.as_str(),
+                        ChatCompletionRequestMessage::System(s) => match s.content.as_ref() {
+                            Some(ChatCompletionRequestSystemMessageContent::Text(t)) => t.as_str(),
+                            None => "",
                             // Today this converter only ever builds `Text` system
                             // content, so the merge is lossless.  Log loudly if a
                             // non-text variant (e.g. `Array`, should async-openai
@@ -796,8 +804,9 @@ impl TryFrom<NvCreateResponse> for NvCreateChatCompletionRequest {
                 messages.insert(
                     0,
                     ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
-                        content: ChatCompletionRequestSystemMessageContent::Text(combined),
+                        content: Some(ChatCompletionRequestSystemMessageContent::Text(combined)),
                         name: None,
+                        tools: None,
                     }),
                 );
             }
@@ -1373,8 +1382,8 @@ mod tests {
         assert_eq!(messages.len(), 2);
 
         match &messages[0] {
-            ChatCompletionRequestMessage::System(sys) => match &sys.content {
-                ChatCompletionRequestSystemMessageContent::Text(t) => {
+            ChatCompletionRequestMessage::System(sys) => match sys.content.as_ref() {
+                Some(ChatCompletionRequestSystemMessageContent::Text(t)) => {
                     assert_eq!(t, "You are a helpful assistant.");
                 }
                 _ => panic!("expected text content"),
@@ -1423,8 +1432,8 @@ mod tests {
         );
 
         match &messages[0] {
-            ChatCompletionRequestMessage::System(sys) => match &sys.content {
-                ChatCompletionRequestSystemMessageContent::Text(t) => {
+            ChatCompletionRequestMessage::System(sys) => match sys.content.as_ref() {
+                Some(ChatCompletionRequestSystemMessageContent::Text(t)) => {
                     assert!(
                         t.contains("You are a coding agent."),
                         "merged text missing instructions: {t}"

@@ -568,8 +568,12 @@ impl ValidateRequest for NvCreateChatCompletionRequest {
         // none for stream_options
         validate::validate_temperature(self.inner.temperature)?;
         validate::validate_top_p(self.inner.top_p)?;
-        validate::validate_tools(&self.inner.tools.as_deref())?;
-        validate::validate_tool_choice(&self.inner.tool_choice, self.inner.tools.as_deref())?;
+        let effective_tools =
+            validate::validate_request_tools(self.inner.tools.as_deref(), &self.inner.messages)?;
+        validate::validate_tool_choice(
+            &self.inner.tool_choice,
+            (!effective_tools.is_empty()).then_some(effective_tools.as_slice()),
+        )?;
         // none for parallel_tool_calls
         validate::validate_user(self.inner.user.as_deref())?;
         // none for function call
@@ -860,6 +864,147 @@ mod tests {
             err.to_string()
                 .contains("tool named \"search\" in tool_choice is not present in tools")
         );
+    }
+
+    fn dynamic_tool(name: &str) -> serde_json::Value {
+        json!({
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": "A tool.",
+                "parameters": {"type": "object", "properties": {}}
+            }
+        })
+    }
+
+    #[test]
+    fn test_system_dynamic_tools_validate_and_drive_tool_choice() {
+        let request_json = json!({
+            "model": "test-model",
+            "messages": [
+                {"role": "system", "content": "", "tools": [dynamic_tool("get_weather")]},
+                {"role": "system", "tools": [dynamic_tool("get_time")]},
+                {"role": "user", "content": "Hello"}
+            ],
+            "tool_choice": "required"
+        });
+        let request: NvCreateChatCompletionRequest =
+            serde_json::from_value(request_json).expect("Failed to deserialize request");
+
+        assert!(ValidateRequest::validate(&request).is_ok());
+    }
+
+    #[test]
+    fn test_named_tool_choice_may_select_dynamic_tool() {
+        let request_json = json!({
+            "model": "test-model",
+            "messages": [
+                {"role": "system", "content": "", "tools": [dynamic_tool("get_weather")]},
+                {"role": "user", "content": "Hello"}
+            ],
+            "tool_choice": {
+                "type": "function",
+                "function": {"name": "get_weather"}
+            }
+        });
+        let request: NvCreateChatCompletionRequest =
+            serde_json::from_value(request_json).expect("Failed to deserialize request");
+
+        assert!(ValidateRequest::validate(&request).is_ok());
+    }
+
+    #[test]
+    fn test_dynamic_tools_require_empty_system_content() {
+        let request_json = json!({
+            "model": "test-model",
+            "messages": [
+                {"role": "system", "content": "not empty", "tools": [dynamic_tool("get_weather")]},
+                {"role": "user", "content": "Hello"}
+            ]
+        });
+        let request: NvCreateChatCompletionRequest =
+            serde_json::from_value(request_json).expect("Failed to deserialize request");
+
+        let err = ValidateRequest::validate(&request).expect_err("content plus tools must reject");
+        assert!(
+            err.to_string()
+                .contains("Dynamic tools require empty content")
+        );
+    }
+
+    #[test]
+    fn test_dynamic_tool_shape_and_name_validation() {
+        let cases = [json!({"type": "function"}), json!([null])];
+        for tools in cases {
+            let request_json = json!({
+                "model": "test-model",
+                "messages": [
+                    {"role": "system", "content": "", "tools": tools},
+                    {"role": "user", "content": "Hello"}
+                ]
+            });
+            let request: NvCreateChatCompletionRequest =
+                serde_json::from_value(request_json).expect("raw dynamic tool shape must parse");
+            assert!(ValidateRequest::validate(&request).is_err());
+        }
+
+        for name in [
+            "1bad_name".to_string(),
+            "bad@name".to_string(),
+            String::new(),
+            "a".repeat(257),
+        ] {
+            let mut tool = dynamic_tool(&name);
+            if name.is_empty() {
+                tool["function"]["name"] = json!("");
+            }
+            let request_json = json!({
+                "model": "test-model",
+                "messages": [
+                    {"role": "system", "content": "", "tools": [tool]},
+                    {"role": "user", "content": "Hello"}
+                ]
+            });
+            let request: NvCreateChatCompletionRequest =
+                serde_json::from_value(request_json).expect("raw dynamic tool shape must parse");
+            assert!(
+                ValidateRequest::validate(&request).is_err(),
+                "invalid dynamic tool name {name:?} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn test_duplicate_dynamic_and_global_tool_names_rejected() {
+        for request_json in [
+            json!({
+                "model": "test-model",
+                "messages": [
+                    {"role": "system", "content": "", "tools": [dynamic_tool("dup"), dynamic_tool("dup")]},
+                    {"role": "user", "content": "Hello"}
+                ]
+            }),
+            json!({
+                "model": "test-model",
+                "messages": [
+                    {"role": "system", "content": "", "tools": [dynamic_tool("dup")]},
+                    {"role": "system", "content": "", "tools": [dynamic_tool("dup")]},
+                    {"role": "user", "content": "Hello"}
+                ]
+            }),
+            json!({
+                "model": "test-model",
+                "tools": [dynamic_tool("dup")],
+                "messages": [
+                    {"role": "system", "content": "", "tools": [dynamic_tool("dup")]},
+                    {"role": "user", "content": "Hello"}
+                ]
+            }),
+        ] {
+            let request: NvCreateChatCompletionRequest =
+                serde_json::from_value(request_json).expect("raw duplicate tools must parse");
+            assert!(ValidateRequest::validate(&request).is_err());
+        }
     }
 
     #[test]

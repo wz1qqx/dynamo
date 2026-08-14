@@ -36,8 +36,9 @@ use crate::protocols::openai::common_ext::CommonExt;
 fn push_system_message(content: String, messages: &mut Vec<ChatCompletionRequestMessage>) {
     messages.push(ChatCompletionRequestMessage::System(
         ChatCompletionRequestSystemMessage {
-            content: ChatCompletionRequestSystemMessageContent::Text(content),
+            content: Some(ChatCompletionRequestSystemMessageContent::Text(content)),
             name: None,
+            tools: None,
         },
     ));
 }
@@ -826,8 +827,8 @@ mod tests {
             ChatCompletionRequestMessage::User(_)
         ));
         match &chat_req.inner.messages[1] {
-            ChatCompletionRequestMessage::System(system) => match &system.content {
-                ChatCompletionRequestSystemMessageContent::Text(text) => {
+            ChatCompletionRequestMessage::System(system) => match system.content.as_ref() {
+                Some(ChatCompletionRequestSystemMessageContent::Text(text)) => {
                     assert_eq!(text, "Keep answers short.\nUse the available shell.");
                 }
                 other => panic!("expected text content, got {other:?}"),

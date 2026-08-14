@@ -527,6 +527,7 @@ pub fn validate_tools(
         );
     }
 
+    let mut names = std::collections::HashSet::with_capacity(tools.len());
     for (i, tool) in tools.iter().enumerate() {
         if tool.function.name.len() > MAX_FUNCTION_NAME_LENGTH {
             anyhow::bail!(
@@ -552,6 +553,27 @@ pub fn validate_tools(
                 tool.function.name,
             );
         }
+        if !tool
+            .function
+            .name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        {
+            anyhow::bail!(
+                "Function at index {} has an invalid name: \"{}\". \
+                 Function names must start with a letter or underscore.",
+                i,
+                tool.function.name,
+            );
+        }
+        if !names.insert(tool.function.name.as_str()) {
+            anyhow::bail!(
+                "Duplicate function name \"{}\" at index {}",
+                tool.function.name,
+                i
+            );
+        }
         if let Some(parameters) = &tool.function.parameters
             && !parameters.is_object()
         {
@@ -563,6 +585,69 @@ pub fn validate_tools(
         }
     }
     Ok(())
+}
+
+/// Validate request-level tools together with Kimi's system-message-level
+/// dynamic tools and return the effective tool list visible to the request.
+///
+/// The protocol layer intentionally preserves system-message tools as raw
+/// JSON because the same field is model-template metadata. This layer owns
+/// request validation for Dynamo's serving contract: dynamic tools must use
+/// the standard OpenAI function-tool shape, live only on otherwise-empty
+/// system messages, and share one name namespace with request-level tools.
+/// Matching vLLM's upstream dynamic-tool resolution (PRs #50542/#51144),
+/// the returned list is used to validate forced and named `tool_choice`.
+pub fn validate_request_tools(
+    global_tools: Option<&[dynamo_protocols::types::ChatCompletionTool]>,
+    messages: &[dynamo_protocols::types::ChatCompletionRequestMessage],
+) -> Result<Vec<dynamo_protocols::types::ChatCompletionTool>, anyhow::Error> {
+    let global_tools = global_tools.unwrap_or(&[]);
+    validate_tools(&Some(global_tools))?;
+
+    let mut effective_tools = global_tools.to_vec();
+    for (message_index, message) in messages.iter().enumerate() {
+        let dynamo_protocols::types::ChatCompletionRequestMessage::System(system) = message else {
+            continue;
+        };
+        let Some(tools_value) = &system.tools else {
+            continue;
+        };
+
+        let content_is_empty = match system.content.as_ref() {
+            None => true,
+            Some(dynamo_protocols::types::ChatCompletionRequestSystemMessageContent::Text(
+                content,
+            )) => content.is_empty(),
+            Some(dynamo_protocols::types::ChatCompletionRequestSystemMessageContent::Array(
+                parts,
+            )) => parts.is_empty(),
+        };
+        if !content_is_empty {
+            anyhow::bail!(
+                "Dynamic tools require empty content: messages[{message_index}] has both non-empty content and tools"
+            );
+        }
+
+        let dynamic_tools: Vec<dynamo_protocols::types::ChatCompletionTool> =
+            serde_json::from_value(tools_value.clone()).map_err(|err| {
+                anyhow::anyhow!("Invalid dynamic tools at messages[{message_index}].tools: {err}")
+            })?;
+        validate_tools(&Some(&dynamic_tools))?;
+        for tool in dynamic_tools {
+            if effective_tools
+                .iter()
+                .any(|existing| existing.function.name == tool.function.name)
+            {
+                anyhow::bail!(
+                    "Duplicate function name \"{}\" across request-level and dynamic tools",
+                    tool.function.name
+                );
+            }
+            effective_tools.push(tool);
+        }
+    }
+
+    Ok(effective_tools)
 }
 
 /// Validates that forced tool_choice requests refer to available tools.

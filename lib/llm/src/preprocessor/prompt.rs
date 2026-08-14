@@ -282,3 +282,44 @@ pub fn prompt_formatter_from_mdc(mdc: &ModelDeploymentCard) -> Result<PromptForm
         )),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dynamo_renderer::OAIPromptFormatter;
+
+    #[test]
+    fn nv_request_preserves_dynamic_tools_for_kimi_formatter() {
+        let request: NvCreateChatCompletionRequest = serde_json::from_value(serde_json::json!({
+            "model": "moonshotai/Kimi-K3",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "",
+                    "tools": [{
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "description": "Get the weather of a city.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"city": {"type": "string"}},
+                                "required": ["city"]
+                            }
+                        }
+                    }]
+                },
+                {"role": "user", "content": "what is the weather in beijing?"}
+            ],
+            "tool_choice": "required"
+        }))
+        .unwrap();
+        let formatter = dynamo_renderer::kimi_k3::KimiK3Formatter::new(true);
+
+        let prompt = formatter.render(&request).unwrap();
+
+        assert!(prompt.contains("## New Tools Available"));
+        assert!(prompt.contains("get_weather"));
+        assert!(prompt.contains("tool_choice=required"));
+    }
+}

@@ -4672,6 +4672,20 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_chat_completion_request_rejects_dynamic_tools_on_user_message() {
+        let body = br#"{"model":"test-model","messages":[{"role":"user","content":"hello","tools":[{"type":"function","function":{"name":"lookup","parameters":{}}}]}]}"#;
+
+        let err =
+            match parse_json_request::<NvCreateChatCompletionRequest>("chat completions", body) {
+                Ok(_) => panic!("non-system dynamic tools must fail schema parsing"),
+                Err(err) => err,
+            };
+
+        assert_eq!(err.0, StatusCode::BAD_REQUEST);
+        assert!(err.1.message.contains("only supported on system messages"));
+    }
+
+    #[test]
     fn test_parse_chat_completion_request_accepts_empty_image_url_with_uuid() {
         let body = br#"{"model":"test-model","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":""},"uuid":"image-42"}]}]}"#;
 
