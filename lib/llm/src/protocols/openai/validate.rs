@@ -678,6 +678,71 @@ pub fn validate_tool_choice(
     Ok(())
 }
 
+/// Validate K3 vendor-parameter immutability for the model's published API.
+///
+/// K3 exposes vendor-fixed sampling defaults rather than the full OpenAI
+/// sampling surface. Thinking mode accepts the documented temperature steps;
+/// non-thinking mode pins temperature to 0.6. Keep this scoped to the model
+/// name rather than changing validation for other OpenAI-compatible models.
+pub fn validate_kimi_k3_vendor_params(
+    model: &str,
+    temperature: Option<f32>,
+    top_p: Option<f32>,
+    presence_penalty: Option<f32>,
+    frequency_penalty: Option<f32>,
+    n: Option<u8>,
+    chat_template_args: Option<&std::collections::HashMap<String, serde_json::Value>>,
+) -> Result<(), anyhow::Error> {
+    let normalized_model = model.to_ascii_lowercase().replace('_', "-");
+    if !normalized_model.contains("kimi-k3") {
+        return Ok(());
+    }
+
+    let thinking_enabled = chat_template_args
+        .and_then(|args| {
+            args.get("thinking")
+                .or_else(|| args.get("enable_thinking"))
+                .and_then(serde_json::Value::as_bool)
+        })
+        .unwrap_or(true);
+
+    fn approx_eq(value: f32, expected: f32) -> bool {
+        (value - expected).abs() <= f32::EPSILON
+    }
+
+    if let Some(value) = temperature {
+        let allowed = if thinking_enabled {
+            approx_eq(value, 0.6) || approx_eq(value, 0.0) || approx_eq(value, 1.0)
+        } else {
+            approx_eq(value, 0.6)
+        };
+        if !allowed {
+            anyhow::bail!("temperature is fixed by the Kimi K3 vendor API; got {value}");
+        }
+    }
+    for (field, value) in [
+        ("top_p", top_p),
+        ("presence_penalty", presence_penalty),
+        ("frequency_penalty", frequency_penalty),
+    ] {
+        let Some(value) = value else {
+            continue;
+        };
+        let expected = if field == "top_p" { 0.95 } else { 0.0 };
+        if !approx_eq(value, expected) {
+            anyhow::bail!("{field} is fixed to {expected} by the Kimi K3 vendor API; got {value}");
+        }
+    }
+    if n.is_some_and(|value| value != 1) {
+        anyhow::bail!(
+            "n is fixed to 1 by the Kimi K3 vendor API; got {}",
+            n.unwrap()
+        );
+    }
+
+    Ok(())
+}
+
 /// Validates reasoning effort parameter
 pub fn validate_reasoning_effort(
     _reasoning_effort: &Option<dynamo_protocols::types::ReasoningEffort>,

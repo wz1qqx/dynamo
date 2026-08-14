@@ -568,6 +568,15 @@ impl ValidateRequest for NvCreateChatCompletionRequest {
         // none for stream_options
         validate::validate_temperature(self.inner.temperature)?;
         validate::validate_top_p(self.inner.top_p)?;
+        validate::validate_kimi_k3_vendor_params(
+            &self.inner.model,
+            self.inner.temperature,
+            self.inner.top_p,
+            self.inner.presence_penalty,
+            self.inner.frequency_penalty,
+            self.inner.n,
+            self.chat_template_args.as_ref(),
+        )?;
         let effective_tools =
             validate::validate_request_tools(self.inner.tools.as_deref(), &self.inner.messages)?;
         validate::validate_tool_choice(
@@ -1004,6 +1013,45 @@ mod tests {
             let request: NvCreateChatCompletionRequest =
                 serde_json::from_value(request_json).expect("raw duplicate tools must parse");
             assert!(ValidateRequest::validate(&request).is_err());
+        }
+    }
+
+    #[test]
+    fn test_k3_vendor_parameter_lock() {
+        fn validate(
+            mut extra: serde_json::Value,
+            thinking: Option<bool>,
+        ) -> Result<(), anyhow::Error> {
+            extra["model"] = json!("moonshotai/Kimi-K3");
+            extra["messages"] = json!([{"role": "user", "content": "Say OK"}]);
+            if let Some(thinking) = thinking {
+                extra["thinking"] = json!({
+                    "type": if thinking { "enabled" } else { "disabled" }
+                });
+            }
+            let mut request: NvCreateChatCompletionRequest = serde_json::from_value(extra).unwrap();
+            request.normalize_reasoning_template_args().unwrap();
+            ValidateRequest::validate(&request)
+        }
+
+        for thinking in [Some(true), Some(false), None] {
+            assert!(validate(json!({}), thinking).is_ok());
+            assert!(validate(json!({"temperature": 0.6}), thinking).is_ok());
+            assert!(validate(json!({"top_p": 0.95}), thinking).is_ok());
+            assert!(validate(json!({"presence_penalty": 0}), thinking).is_ok());
+            assert!(validate(json!({"frequency_penalty": 0}), thinking).is_ok());
+            assert!(validate(json!({"n": 1}), thinking).is_ok());
+
+            assert!(validate(json!({"temperature": 1.1}), thinking).is_err());
+            assert!(validate(json!({"top_p": 0.8}), thinking).is_err());
+            assert!(validate(json!({"presence_penalty": 0.5}), thinking).is_err());
+            assert!(validate(json!({"frequency_penalty": 0.5}), thinking).is_err());
+            assert!(validate(json!({"n": 2}), thinking).is_err());
+        }
+
+        for temperature in [0.0, 1.0] {
+            assert!(validate(json!({"temperature": temperature}), Some(true)).is_ok());
+            assert!(validate(json!({"temperature": temperature}), Some(false)).is_err());
         }
     }
 
