@@ -195,9 +195,10 @@ rustls-pemfile = { version = "2" }
 # Candidate-only override: preserve Kimi system-message dynamic tools through
 # the OpenAI-compatible request boundary. Based on ai-dynamo/frontend-crates
 # issue #159 / PR #160.
-dynamo-protocols = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "38cf818b17bbb0ef6e81e6fdee42650c297444bc" }
-dynamo-renderer = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "38cf818b17bbb0ef6e81e6fdee42650c297444bc" }
-dynamo-tokenizers = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "38cf818b17bbb0ef6e81e6fdee42650c297444bc" }
+dynamo-protocols = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "5cedc31324df76b6e526a6f77f02eeb1ad0e76ec" }
+dynamo-renderer = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "5cedc31324df76b6e526a6f77f02eeb1ad0e76ec" }
+dynamo-parsers = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "5cedc31324df76b6e526a6f77f02eeb1ad0e76ec" }
+dynamo-tokenizers = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "5cedc31324df76b6e526a6f77f02eeb1ad0e76ec" }
 
 [profile.dev.package]
 insta.opt-level = 3
