@@ -2815,7 +2815,7 @@ dependencies = [
 [[package]]
 name = "dynamo-parsers"
 version = "7.1.1"
-source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=5cedc31324df76b6e526a6f77f02eeb1ad0e76ec#5cedc31324df76b6e526a6f77f02eeb1ad0e76ec"
+source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=91e7e4b3ec27fa46eb38ffb5bad210d48c17c4b2#91e7e4b3ec27fa46eb38ffb5bad210d48c17c4b2"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -2854,7 +2854,7 @@ dependencies = [
 [[package]]
 name = "dynamo-protocols"
 version = "5.3.1"
-source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=5cedc31324df76b6e526a6f77f02eeb1ad0e76ec#5cedc31324df76b6e526a6f77f02eeb1ad0e76ec"
+source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=91e7e4b3ec27fa46eb38ffb5bad210d48c17c4b2#91e7e4b3ec27fa46eb38ffb5bad210d48c17c4b2"
 dependencies = [
  "async-openai",
  "derive_builder",
@@ -2870,7 +2870,7 @@ dependencies = [
 [[package]]
 name = "dynamo-renderer"
 version = "5.0.0"
-source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=5cedc31324df76b6e526a6f77f02eeb1ad0e76ec#5cedc31324df76b6e526a6f77f02eeb1ad0e76ec"
+source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=91e7e4b3ec27fa46eb38ffb5bad210d48c17c4b2#91e7e4b3ec27fa46eb38ffb5bad210d48c17c4b2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3035,7 +3035,7 @@ dependencies = [
 [[package]]
 name = "dynamo-tokenizers"
 version = "1.8.0"
-source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=5cedc31324df76b6e526a6f77f02eeb1ad0e76ec#5cedc31324df76b6e526a6f77f02eeb1ad0e76ec"
+source = "git+https://github.com/wz1qqx/frontend-crates.git?rev=91e7e4b3ec27fa46eb38ffb5bad210d48c17c4b2#91e7e4b3ec27fa46eb38ffb5bad210d48c17c4b2"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -4538,7 +4538,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.4",
  "system-configuration 0.6.1",
  "tokio",
  "tower-service",
@@ -7559,7 +7559,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls 0.23.40",
- "socket2 0.5.10",
+ "socket2 0.6.4",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -7596,7 +7596,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.4",
  "tracing",
  "windows-sys 0.60.2",
 ]
