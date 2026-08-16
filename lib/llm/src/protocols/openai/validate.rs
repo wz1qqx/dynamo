@@ -463,10 +463,20 @@ pub fn validate_stop(stop: &Option<dynamo_protocols::types::Stop>) -> Result<(),
 /// Validates messages array
 pub fn validate_messages(
     messages: &[dynamo_protocols::types::ChatCompletionRequestMessage],
+    model: Option<&str>,
 ) -> Result<(), anyhow::Error> {
     if messages.is_empty() {
         anyhow::bail!("Messages array cannot be empty");
     }
+    // Kimi K3's renderer has an explicit fallback for malformed historical tool
+    // arguments. Preserve that vendor behavior while retaining strict validation
+    // for every other model.
+    let allow_kimi_k3_fallback = model.is_some_and(|model| {
+        model
+            .to_ascii_lowercase()
+            .replace('_', "-")
+            .contains("kimi-k3")
+    });
     // Prior assistant tool-call messages in the request must carry arguments
     // as a JSON object string; reject bad non-empty shapes before chat-template rendering.
     // This was caught in MiniMax-M3 multi-turn tool-call tests
@@ -475,12 +485,14 @@ pub fn validate_messages(
             && let Some(tool_calls) = &assistant.tool_calls
         {
             for (tool_call_index, tool_call) in tool_calls.iter().enumerate() {
-                validate_json_object_string(
-                    &tool_call.function.arguments,
-                    format!(
-                        "`messages[{message_index}].tool_calls[{tool_call_index}].function.arguments`"
-                    ),
-                )?;
+                if !allow_kimi_k3_fallback {
+                    validate_json_object_string(
+                        &tool_call.function.arguments,
+                        format!(
+                            "`messages[{message_index}].tool_calls[{tool_call_index}].function.arguments`"
+                        ),
+                    )?;
+                }
             }
         }
     }
