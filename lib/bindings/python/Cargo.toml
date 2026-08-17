@@ -140,7 +140,7 @@ strip = false
 # This extension crate deliberately forms its own workspace. Duplicate the
 # candidate protocol/renderer override here; the top-level patch is ignored
 # when maturin resolves this manifest.
-dynamo-protocols = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "1382631f51f3bd2e63285499e8531d807d266870" }
-dynamo-renderer = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "1382631f51f3bd2e63285499e8531d807d266870" }
-dynamo-parsers = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "1382631f51f3bd2e63285499e8531d807d266870" }
-dynamo-tokenizers = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "1382631f51f3bd2e63285499e8531d807d266870" }
+dynamo-protocols = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "7ca39cdbd30ea0adb364fc2ad30068a8e13465ba" }
+dynamo-renderer = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "7ca39cdbd30ea0adb364fc2ad30068a8e13465ba" }
+dynamo-parsers = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "7ca39cdbd30ea0adb364fc2ad30068a8e13465ba" }
+dynamo-tokenizers = { git = "https://github.com/wz1qqx/frontend-crates.git", rev = "7ca39cdbd30ea0adb364fc2ad30068a8e13465ba" }
